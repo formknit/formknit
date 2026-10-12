@@ -4,7 +4,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './app.css'
-import { AuthPage, AuthProvider, RequireAuth } from './auth'
+import { AccountPage } from './Account'
+import { AuthPage, AuthProvider, ForgotPage, RequireAuth, ResetPage } from './auth'
+import { DashboardPage } from './Dashboard'
 import { FormPage, SubmissionPage } from './FormPage'
 import { FormsPage } from './FormsPage'
 import { PublicForm } from './PublicForm'
@@ -24,7 +26,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/f/:slug" element={<PublicForm />} />
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/" element={signedIn(<FormsPage />)} />
+          <Route path="/forgot" element={<ForgotPage />} />
+          <Route path="/reset" element={<ResetPage />} />
+          <Route path="/" element={signedIn(<DashboardPage />)} />
+          <Route path="/forms" element={signedIn(<FormsPage />)} />
+          <Route path="/account" element={signedIn(<AccountPage />)} />
           <Route path="/forms/:id" element={signedIn(<FormPage />)} />
           <Route path="/submissions/:id" element={signedIn(<SubmissionPage />)} />
           <Route path="*" element={<div className="center muted">Page not found</div>} />

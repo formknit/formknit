@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api'
 import { Logo, useAuth } from './auth'
 
@@ -7,6 +7,7 @@ import { Logo, useAuth } from './auth'
 export function Shell({ children }: { children: ReactNode }) {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const path = useLocation().pathname
   const signOut = async () => {
     await api('/auth/logout', { method: 'POST', body: {} }).catch(() => {})
     setUser(null)
@@ -18,9 +19,15 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <Logo />
         <nav>
-          {/* Form and submission pages belong to Forms too, so it stays highlighted there. */}
-          <NavLink to="/" className="nav active">
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav active' : 'nav')}>
+            Dashboard
+          </NavLink>
+          {/* Submission pages belong to Forms too, so it stays highlighted there. */}
+          <NavLink to="/forms" className={({ isActive }) => (isActive || path.startsWith('/submissions') ? 'nav active' : 'nav')}>
             Forms
+          </NavLink>
+          <NavLink to="/account" className={({ isActive }) => (isActive ? 'nav active' : 'nav')}>
+            Account
           </NavLink>
         </nav>
         <div className="sidebar-user">

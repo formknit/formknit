@@ -1,24 +1,31 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, ApiError, useLoad, when, type FormDetail, type FormSummary } from './api'
+import { api, ApiError, CLOSED_TEXT, useLoad, when, type FormDetail, type FormSummary } from './api'
 
-export function StatusBadge({ form }: { form: Pick<FormSummary, 'status' | 'unpublishedChanges'> }) {
+export function StatusBadge({ form }: { form: Pick<FormSummary, 'status' | 'unpublishedChanges' | 'closedReason'> }) {
   if (form.status === 'draft') return <span className="badge">Draft</span>
-  if (form.unpublishedChanges) return <span className="badge warn">Unpublished changes</span>
-  return <span className="badge ok">Published</span>
+  return (
+    <>
+      {form.unpublishedChanges ? <span className="badge warn">Unpublished changes</span> : <span className="badge ok">Published</span>}
+      {form.closedReason && <span className="badge bad">{CLOSED_TEXT[form.closedReason]}</span>}
+    </>
+  )
 }
 
 export function FormsPage() {
   const navigate = useNavigate()
   const { data, error, loading, reload } = useLoad(() => api<{ forms: FormSummary[] }>('/forms'), [])
+  const templates = useLoad(() => api<{ templates: { id: string; name: string; description: string; fields: number }[] }>('/templates'), [])
   const [creating, setCreating] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
   const create = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const name = String(new FormData(e.currentTarget).get('name') ?? '').trim()
+    const data = new FormData(e.currentTarget)
+    const name = String(data.get('name') ?? '').trim()
+    const template = String(data.get('template') ?? '') || undefined
     try {
-      const res = await api<{ form: FormDetail }>('/forms', { method: 'POST', body: { name } })
+      const res = await api<{ form: FormDetail }>('/forms', { method: 'POST', body: { name, template } })
       navigate(`/forms/${res.form.id}`)
     } catch (err) {
       setProblem((err as ApiError).message)
@@ -30,6 +37,14 @@ export function FormsPage() {
     try {
       await api(`/forms/${form.id}`, { method: 'DELETE' })
       reload()
+    } catch (err) {
+      setProblem((err as ApiError).message)
+    }
+  }
+  const duplicate = async (form: FormSummary) => {
+    try {
+      const res = await api<{ form: FormDetail }>(`/forms/${form.id}/duplicate`, { method: 'POST', body: {} })
+      navigate(`/forms/${res.form.id}`)
     } catch (err) {
       setProblem((err as ApiError).message)
     }
@@ -53,10 +68,21 @@ export function FormsPage() {
         )}
       </header>
       {creating && (
-        <form className="card row" onSubmit={create}>
+        <form className="card row end" onSubmit={create}>
           <label className="field grow">
             <span>Form name</span>
             <input name="name" autoFocus required placeholder="e.g. Admission form" />
+          </label>
+          <label className="field">
+            <span>Start from</span>
+            <select name="template" defaultValue="">
+              <option value="">A blank form</option>
+              {(templates.data?.templates ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.fields} fields)
+                </option>
+              ))}
+            </select>
           </label>
           <button className="button primary">Create form</button>
           <button type="button" className="button" onClick={() => setCreating(false)}>
@@ -103,6 +129,9 @@ export function FormsPage() {
                 <td>{when(form.updatedAt)}</td>
                 <td className="actions">
                   <Link to={`/forms/${form.id}`}>Edit</Link>
+                  <button className="link" onClick={() => duplicate(form)}>
+                    Duplicate
+                  </button>
                   <button className="link danger" onClick={() => remove(form)}>
                     Delete
                   </button>

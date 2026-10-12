@@ -286,7 +286,7 @@ describe('public form and submissions', () => {
     expect(csv.headers.get('content-type')).toMatch(/text\/csv/)
     expect(csv.headers.get('content-disposition')).toBe(`attachment; filename="${f.slug}-submissions.csv"`)
     const lines = csv.text.trim().split('\r\n')
-    expect(lines[0]).toBe('Submitted,ID,Full name,Country,District,Fee,With VAT,Agree')
+    expect(lines[0]).toBe('Submitted,ID,Full name,Country,District,Fee,With VAT,Agree,Status')
     expect(lines).toHaveLength(6)
     // A cell that looks like a formula is neutralised, and quotes and commas are escaped.
     expect(csv.text).toContain(`"'=HYPERLINK(""http://evil"")"`)

@@ -67,6 +67,7 @@ export interface FormSummary {
   updatedAt: number
   submissions: number
   unpublishedChanges: boolean
+  closedReason: string | null
 }
 
 export interface FormSettings {
@@ -74,6 +75,20 @@ export interface FormSettings {
   closed?: boolean
   maxSubmissions?: number
   exposedFields?: string[]
+  opensAt?: string
+  closesAt?: string
+  notifyEmails?: string[]
+}
+
+export const STATUSES = ['new', 'in_review', 'approved', 'rejected'] as const
+export type Status = (typeof STATUSES)[number]
+export const STATUS_LABEL: Record<Status, string> = { new: 'New', in_review: 'In review', approved: 'Approved', rejected: 'Rejected' }
+export const STATUS_CLASS: Record<Status, string> = { new: 'badge warn', in_review: 'badge info', approved: 'badge ok', rejected: 'badge bad' }
+export const CLOSED_TEXT: Record<string, string> = {
+  closed: 'Closed',
+  not_open: 'Not open yet',
+  ended: 'Ended',
+  full: 'Full',
 }
 
 export interface FormDetail extends FormSummary {
@@ -86,6 +101,7 @@ export interface Submission {
   id: string
   formId: string
   data: Record<string, unknown>
+  status: Status
   createdAt: number
 }
 

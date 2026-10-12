@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError, type User } from './api'
 
 interface Auth {
@@ -90,9 +90,102 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="button primary" disabled={busy}>
           {busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}
         </button>
+        {!register && (
+          <p className="centered">
+            <Link to="/forgot">Forgot your password?</Link>
+          </p>
+        )}
         <p className="muted centered">
           {register ? 'Already have an account? ' : "Don't have an account? "}
           <Link to={register ? '/login' : '/register'}>{register ? 'Sign in' : 'Create one'}</Link>
+        </p>
+      </form>
+    </div>
+  )
+}
+
+export function ForgotPage() {
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState<ApiError | null>(null)
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError(null)
+    try {
+      await api('/auth/forgot', { method: 'POST', body: { email: new FormData(e.currentTarget).get('email') } })
+      setSent(true)
+    } catch (err) {
+      setError(err as ApiError)
+    }
+  }
+  return (
+    <div className="center">
+      <form className="card auth-card" onSubmit={submit}>
+        <Logo />
+        <div>
+          <h1>Reset your password</h1>
+          <p className="muted">Enter your email and we will send you a link to choose a new password.</p>
+        </div>
+        {sent ? (
+          <div className="banner ok-bg" role="status">
+            If an account exists for that address, a reset link is on its way. It works for one hour.
+          </div>
+        ) : (
+          <>
+            <label className="field">
+              <span>Email</span>
+              <input name="email" type="email" autoComplete="email" required />
+            </label>
+            {error && (
+              <div className="banner danger" role="alert">
+                {error.message}
+              </div>
+            )}
+            <button className="button primary">Send reset link</button>
+          </>
+        )}
+        <p className="centered">
+          <Link to="/login">Back to sign in</Link>
+        </p>
+      </form>
+    </div>
+  )
+}
+
+export function ResetPage() {
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const [error, setError] = useState<ApiError | null>(null)
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError(null)
+    try {
+      await api('/auth/reset', { method: 'POST', body: { token: params.get('token'), password: new FormData(e.currentTarget).get('password') } })
+      navigate('/login')
+    } catch (err) {
+      setError(err as ApiError)
+    }
+  }
+  return (
+    <div className="center">
+      <form className="card auth-card" onSubmit={submit}>
+        <Logo />
+        <div>
+          <h1>Choose a new password</h1>
+          <p className="muted">You will be signed out everywhere and can then sign in with it.</p>
+        </div>
+        <label className="field">
+          <span>New password</span>
+          <input name="password" type="password" autoComplete="new-password" required aria-invalid={!!error?.fields.password} />
+          {error?.fields.password ? <small className="danger">{error.fields.password[0]}</small> : <small className="muted">At least 12 characters</small>}
+        </label>
+        {error && !error.fields.password && (
+          <div className="banner danger" role="alert">
+            {error.message}
+          </div>
+        )}
+        <button className="button primary">Change password</button>
+        <p className="centered">
+          <Link to="/forgot">Ask for a new link</Link>
         </p>
       </form>
     </div>

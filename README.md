@@ -126,16 +126,27 @@ The demo sign-in is in `apps/api/scripts/seed.ts`. It is for local development o
 
 What works today:
 
-- Accounts with sessions (passwords hashed with scrypt, session tokens stored hashed)
-- Forms: create, edit in the builder with autosave, publish, unpublish, delete
-- Draft and published versions are separate, so edits stay private until you publish
-- Public form page at `/f/<address>`, validated again on the server
-- Submissions: list, search, view, delete, export to CSV
-- Settings: name, address, success message, submission limit, closing a form
-- Lookups between forms, limited to fields the source form has marked as readable
+- **Accounts:** register, sign in, password reset by emailed link, change name and password,
+  API keys for read-only access from your own programs
+- **Forms:** create blank or from a template, edit in the builder with autosave, duplicate,
+  publish, unpublish, delete. Draft and published versions are separate
+- **Version history:** every publish is kept and can be restored as the draft
+- **Public form page** at `/f/<address>`, validated again on the server, with file uploads
+- **Opening times:** open and close dates, a submission limit, or close by hand
+- **Submissions:** list, search, filter by status, view, edit, delete, export to CSV
+- **Review:** each submission is new, in review, approved or rejected, with private notes
+- **Dashboard and reports:** totals, submissions per day, and a breakdown of each choice and
+  number field
+- **Notifications:** email chosen addresses on each submission; webhooks signed with a secret,
+  with a delivery log and a test button
+- **Lookups between forms**, limited to fields the source form has marked as readable
 
-It uses SQLite through Drizzle so it can move to PostgreSQL. Not built yet: teams and roles,
-approval workflow, reports, version history, email, webhooks, payments, PDF, password reset.
+Email is not connected to a mail server yet. In development each message is printed in the API's
+terminal and stored in the `outbox` table; to send for real, give `createMailer` a transport in
+`apps/api/src/index.ts`.
+
+It uses SQLite through Drizzle so it can move to PostgreSQL. Not built: teams and roles,
+payments, Google Sheets, PDF generation, Excel export, PostgreSQL and Docker setup.
 
 ## Server validation
 

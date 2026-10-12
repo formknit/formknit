@@ -6,7 +6,7 @@ import {
 } from '@formknit/core'
 import { eq } from 'drizzle-orm'
 import { hashPassword, newId } from '../src/auth'
-import { createDb, forms, submissions, users, type FormSettings } from '../src/db'
+import { createDb, forms, submissions, users, versions, type FormSettings } from '../src/db'
 
 export const DEMO_EMAIL = 'demo@formknit.test'
 export const DEMO_PASSWORD = 'formknit-demo-password'
@@ -73,6 +73,7 @@ function addForm(name: string, slug: string, schema: FormSchema, settings: FormS
   const id = newId()
   const now = Date.now()
   db.insert(forms).values({ id, ownerId, name, slug, status: 'published', schema, publishedSchema: schema, publishedAt: now, settings, createdAt: now, updatedAt: now }).run()
+  db.insert(versions).values({ id: newId(), formId: id, version: 1, schema, publishedAt: now }).run()
   rows.forEach((row, i) => {
     const result = validate(schema, row)
     if (!result.valid) throw new Error(`Seed row ${i} for ${name} is invalid: ${JSON.stringify(result.errors)}`)
