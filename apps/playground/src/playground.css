@@ -92,3 +92,8 @@ body {
   background: #fef3f2;
   color: #d92d20;
 }
+
+.pg-builder {
+  height: calc(100vh - 57px);
+  padding: 12px;
+}

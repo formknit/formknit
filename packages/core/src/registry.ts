@@ -25,6 +25,8 @@ export interface FieldDefinition {
   coerce?(value: unknown, component: ComponentSchema): unknown
   /** Overrides what counts as empty for `required`. */
   isEmpty?(value: unknown): boolean
+  /** Message when the field is required but empty. Defaults to "… is required". */
+  requiredMessage?(label: string, messages: Messages): string
   /** Type-specific check of a non-empty value. Returns an error message or null. */
   check?(value: unknown, component: ComponentSchema, label: string, messages: Messages): string | null
 }

@@ -83,6 +83,7 @@ const boolean = (type: string, label: string) =>
     coerce: (v) => v === true || v === 'true',
     // "Required" on a checkbox means it must be ticked.
     isEmpty: (v) => v !== true,
+    requiredMessage: (label, m) => m.mustTick(label),
   })
 
 boolean('checkbox', 'Checkbox')

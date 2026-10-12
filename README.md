@@ -12,7 +12,7 @@ builder.
 |---|---|---|
 | `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
 | `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, swappable components, default skin |
-| `@formknit/builder` | Planned | Drag-and-drop form builder |
+| `@formknit/builder` | Working | Drag-and-drop form builder: palette, canvas, settings, rule and formula editors, pages, undo/redo, preview and JSON views |
 
 ## Quick look
 
@@ -44,6 +44,16 @@ To render with another UI library, pass your own components for any field type:
 ```
 
 Theme the default skin with CSS variables such as `--fx-primary` and `--fx-radius`.
+
+Let your own users design forms by embedding the builder:
+
+```tsx
+import { FormBuilder } from '@formknit/builder'
+import '@formknit/react/styles.css'
+import '@formknit/builder/styles.css'
+
+<FormBuilder value={schema} onChange={setSchema} />
+```
 
 ## Server validation
 

@@ -30,7 +30,7 @@ export {
   ExprSyntaxError,
   isError,
 } from './expr'
-export type { Compiled, ExprFunction, EvalOptions } from './expr'
+export type { Compiled, ExprFunction, EvalOptions, Ast } from './expr'
 export {
   form,
   page,

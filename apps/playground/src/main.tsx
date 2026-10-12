@@ -1,3 +1,5 @@
+import { FormBuilder } from '@formknit/builder'
+import '@formknit/builder/styles.css'
 import { Form, useForm, useFormState } from '@formknit/react'
 import '@formknit/react/styles.css'
 import { StrictMode, useState } from 'react'
@@ -40,20 +42,26 @@ function Example({ name }: { name: Name }) {
 
 function App() {
   const names = Object.keys(examples) as Name[]
-  const [name, setName] = useState<Name>(names[0])
+  const [tab, setTab] = useState<Name | 'Builder'>('Builder')
   return (
     <>
       <header className="pg-top">
         <strong>Formknit playground</strong>
         <nav className="pg-tabs">
-          {names.map((n) => (
-            <button key={n} className={n === name ? 'pg-tab pg-active' : 'pg-tab'} onClick={() => setName(n)}>
+          {(['Builder', ...names] as const).map((n) => (
+            <button key={n} className={n === tab ? 'pg-tab pg-active' : 'pg-tab'} onClick={() => setTab(n)}>
               {n}
             </button>
           ))}
         </nav>
       </header>
-      <Example key={name} name={name} />
+      {tab === 'Builder' ? (
+        <div className="pg-builder">
+          <FormBuilder defaultValue={examples['Admission form']} />
+        </div>
+      ) : (
+        <Example key={tab} name={tab} />
+      )}
     </>
   )
 }

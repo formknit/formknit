@@ -204,7 +204,7 @@ export function computeState(schema: FormSchema, input: FormValues = {}, opts: C
     if (node.kind === 'calculated' && calcErrors.has(path)) return [messages.calculation(label, calcErrors.get(path)!)]
     const empty = node.def?.isEmpty ? node.def.isEmpty(value) : blank(value)
     if (empty) {
-      if (required) return [messages.required(label)]
+      if (required) return [node.def?.requiredMessage?.(label, messages) ?? messages.required(label)]
       // "At least N items" applies to an empty list too; other limits wait until there is a value.
       if (Array.isArray(value) && v.minItems) return [messages.minItems(label, v.minItems)]
       return []

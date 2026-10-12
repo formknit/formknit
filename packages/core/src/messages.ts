@@ -3,6 +3,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 /** Every message the core can produce. Replace any of them to translate or reword. */
 export const defaultMessages = {
   required: (label: string) => `${label} is required`,
+  /** A required checkbox or toggle that is not ticked. */
+  mustTick: (label: string) => `Please tick "${label}"`,
   minLength: (label: string, n: number) => `${label} must be at least ${plural(n, 'character')}`,
   maxLength: (label: string, n: number) => `${label} must be at most ${plural(n, 'character')}`,
   min: (label: string, n: number | string) => `${label} must be at least ${n}`,

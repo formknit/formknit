@@ -41,7 +41,7 @@ describe('code-first builders', () => {
     expect(result.data.total).toBe(11400)
     expect(validate(invoice, { rollNumber: 'x' }).errors).toMatchObject({
       rollNumber: ['Use 2027-0142'],
-      agree: ['agree is required'],
+      agree: ['Please tick "agree"'],
       items: ['items needs at least 1 item'],
       total: ['Total must be positive'],
     })

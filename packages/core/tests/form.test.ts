@@ -41,7 +41,7 @@ describe('validation', () => {
       email: ['Email must be a valid email address'],
       age: ['Age must be at least 16'],
       country: ['Country has a choice that is not allowed'],
-      agree: ['Agreement is required'],
+      agree: ['Please tick "Agreement"'],
     })
   })
 

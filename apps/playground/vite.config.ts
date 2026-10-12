@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
+      { find: '@formknit/builder/styles.css', replacement: src('builder/src/styles.css') },
+      { find: '@formknit/builder', replacement: src('builder/src/index.ts') },
       { find: '@formknit/react/styles.css', replacement: src('react/src/styles.css') },
       { find: '@formknit/react', replacement: src('react/src/index.ts') },
       { find: '@formknit/core', replacement: src('core/src/index.ts') },

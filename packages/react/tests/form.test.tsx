@@ -55,7 +55,7 @@ describe('<Form>', () => {
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByText('Full name is required')).toBeTruthy()
     expect(screen.getByText('Country is required')).toBeTruthy()
-    expect(screen.getByText('I agree is required')).toBeTruthy()
+    expect(screen.getByText('Please tick "I agree"')).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByLabelText(/Full name/))
   })
 
@@ -168,7 +168,7 @@ describe('multi-step forms', () => {
     await user.type(screen.getByLabelText(/Full name/), 'Sita')
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(screen.getByRole('heading', { name: 'Confirm' })).toBeTruthy()
-    expect(screen.queryByText('I agree is required')).toBeNull()
+    expect(screen.queryByText('Please tick "I agree"')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Back' }))
     await user.click(screen.getByLabelText(/hostel room/))
