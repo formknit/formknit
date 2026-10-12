@@ -217,7 +217,8 @@ export function Form<S extends FormSchema>(props: FormProps<S>) {
   const last = snap.step >= snap.pages.length - 1
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (last) void store.submit()
+    // A failing onSubmit is the caller's to report; it must not surface as an unhandled rejection.
+    if (last) store.submit().catch(() => {})
     else store.next()
   }
   const { Button, Steps } = adapter.ui

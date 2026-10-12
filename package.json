@@ -10,7 +10,10 @@
     "changeset": "changeset",
     "release": "pnpm -r build && pnpm -r test && changeset publish",
     "docs:dev": "pnpm --filter @formknit/docs dev",
-    "docs:build": "pnpm --filter @formknit/docs build"
+    "docs:build": "pnpm --filter @formknit/docs build",
+    "dev:api": "pnpm --filter @formknit/api dev",
+    "dev:web": "pnpm --filter @formknit/web dev",
+    "seed": "pnpm --filter @formknit/api seed"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",

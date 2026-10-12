@@ -5,3 +5,6 @@ coverage
 .DS_Store
 .claude/
 .vitepress/cache
+*.sqlite
+*.sqlite-*
+.env

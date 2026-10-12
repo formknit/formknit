@@ -6,5 +6,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@formknit/playground", "@formknit/docs"]
+  "ignore": ["@formknit/playground", "@formknit/docs", "@formknit/api", "@formknit/web"]
 }

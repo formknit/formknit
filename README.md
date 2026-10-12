@@ -111,6 +111,32 @@ import '@formknit/builder/styles.css'
 <FormBuilder value={schema} onChange={setSchema} />
 ```
 
+## The platform (early)
+
+`apps/api` and `apps/web` are a hosted product built on the packages: sign in, design forms
+with the builder, publish them, collect submissions, and export them.
+
+```bash
+pnpm seed       # once: creates a demo account and three sample forms
+pnpm dev:api    # API on http://localhost:8787
+pnpm dev:web    # app on http://localhost:5175
+```
+
+The demo sign-in is in `apps/api/scripts/seed.ts`. It is for local development only.
+
+What works today:
+
+- Accounts with sessions (passwords hashed with scrypt, session tokens stored hashed)
+- Forms: create, edit in the builder with autosave, publish, unpublish, delete
+- Draft and published versions are separate, so edits stay private until you publish
+- Public form page at `/f/<address>`, validated again on the server
+- Submissions: list, search, view, delete, export to CSV
+- Settings: name, address, success message, submission limit, closing a form
+- Lookups between forms, limited to fields the source form has marked as readable
+
+It uses SQLite through Drizzle so it can move to PostgreSQL. Not built yet: teams and roles,
+approval workflow, reports, version history, email, webhooks, payments, PDF, password reset.
+
 ## Server validation
 
 ```ts
