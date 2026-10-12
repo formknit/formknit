@@ -1,0 +1,269 @@
+/* Default skin. Override the --fx-* variables on .fx-form (or any ancestor) to theme it. */
+.fx-form {
+  --fx-primary: #4f46e5;
+  --fx-on-primary: #ffffff;
+  --fx-surface: #ffffff;
+  --fx-subtle: #f5f6f8;
+  --fx-border: #e2e5eb;
+  --fx-text: #151922;
+  --fx-muted: #667085;
+  --fx-danger: #d92d20;
+  --fx-radius: 8px;
+  --fx-gap: 16px;
+  --fx-font: inherit;
+  --fx-font-size: 14px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--fx-gap);
+  color: var(--fx-text);
+  font-family: var(--fx-font);
+  font-size: var(--fx-font-size);
+  line-height: 1.45;
+  text-align: start;
+}
+.fx-form *,
+.fx-form *::before,
+.fx-form *::after {
+  box-sizing: border-box;
+}
+.fx-slot {
+  display: contents;
+}
+.fx-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fx-gap);
+  min-width: 0;
+}
+.fx-header,
+.fx-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fx-title {
+  margin: 0;
+  font-size: 1.6em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.fx-heading {
+  margin: 0;
+  font-size: 1.25em;
+  font-weight: 600;
+}
+.fx-text {
+  margin: 0;
+  color: var(--fx-muted);
+}
+.fx-divider {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--fx-border);
+}
+
+.fx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fx-label {
+  padding: 0;
+  font-size: 0.93em;
+  font-weight: 500;
+}
+.fx-required {
+  color: var(--fx-danger);
+}
+.fx-description {
+  color: var(--fx-muted);
+  font-size: 0.86em;
+}
+.fx-error {
+  color: var(--fx-danger);
+  font-size: 0.86em;
+}
+.fx-error:empty {
+  display: none;
+}
+
+.fx-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  background: var(--fx-surface);
+  color: inherit;
+  font: inherit;
+}
+.fx-input::placeholder {
+  color: var(--fx-muted);
+}
+.fx-input:focus-visible,
+.fx-choice input:focus-visible,
+.fx-button:focus-visible,
+.fx-icon-button:focus-visible {
+  outline: 2px solid var(--fx-primary);
+  outline-offset: 1px;
+}
+.fx-input:disabled {
+  background: var(--fx-subtle);
+  color: var(--fx-muted);
+}
+.fx-invalid > .fx-input {
+  border-color: var(--fx-danger);
+}
+.fx-textarea {
+  resize: vertical;
+}
+.fx-output {
+  display: block;
+  background: var(--fx-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.fx-file {
+  padding: 6px;
+}
+
+.fx-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+}
+.fx-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.fx-choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--fx-primary);
+}
+
+.fx-panel {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--fx-border);
+  border-radius: calc(var(--fx-radius) + 2px);
+  min-width: 0;
+}
+.fx-panel-title {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.fx-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fx-gap);
+}
+.fx-column {
+  flex: 1 1 200px;
+}
+
+.fx-repeater {
+  gap: 10px;
+}
+.fx-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+}
+.fx-row-fields {
+  flex: 1;
+}
+.fx-row-actions {
+  display: flex;
+  gap: 4px;
+}
+.fx-icon-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  background: var(--fx-surface);
+  color: var(--fx-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fx-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fx-step-count {
+  margin-inline-start: auto;
+  color: var(--fx-muted);
+  font-size: 0.86em;
+}
+.fx-button {
+  padding: 9px 16px;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  background: var(--fx-surface);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.fx-button-primary {
+  border-color: var(--fx-primary);
+  background: var(--fx-primary);
+  color: var(--fx-on-primary);
+}
+.fx-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.fx-steps {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fx-step {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fx-muted);
+  font-size: 0.86em;
+  font-weight: 500;
+}
+.fx-step-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fx-border);
+}
+.fx-step-done,
+.fx-step-current {
+  color: var(--fx-text);
+}
+.fx-step-done .fx-step-bar,
+.fx-step-current .fx-step-bar {
+  background: var(--fx-primary);
+}
+.fx-step-current {
+  color: var(--fx-primary);
+}
+.fx-unknown {
+  padding: 8px 12px;
+  border: 1px dashed var(--fx-danger);
+  border-radius: var(--fx-radius);
+  color: var(--fx-danger);
+}
