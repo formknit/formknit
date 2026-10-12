@@ -1,4 +1,4 @@
-import type { ComponentSchema, FormSchema, Option, PageSchema } from './types'
+import type { Address, ComponentSchema, DateRange, FormSchema, Option, PageSchema } from './types'
 
 type Shape = Record<string, unknown>
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never
@@ -115,6 +115,13 @@ export const url = <K extends string>(key: K) => make<K, string>('url', key)
 export const rating = <K extends string>(key: K, max = 5) => make<K, number | null>('rating', key, { max })
 /** A number picked on a track. Set the range with `.min()` and `.max()`. */
 export const slider = <K extends string>(key: K) => make<K, number | null>('slider', key)
+
+/** Two dates, stored as `{ start, end }`. */
+export const dateRange = <K extends string>(key: K) => make<K, DateRange | null>('dateRange', key)
+/** Street, city, region, postcode and country in one field. */
+export const address = <K extends string>(key: K) => make<K, Address | null>('address', key)
+/** A drawn signature, stored as a PNG data URL. */
+export const signature = <K extends string>(key: K) => make<K, string>('signature', key)
 
 /**
  * A read-only value fetched from a data source, e.g.

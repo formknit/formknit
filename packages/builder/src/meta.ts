@@ -104,6 +104,9 @@ const ICONS: Record<string, string> = {
   rating: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>',
   slider: '<path d="M3 12h18"/><circle cx="9" cy="12" r="3"/>',
   lookup: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  dateRange: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h8"/>',
+  address: '<path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  signature: '<path d="M3 17c3-6 5-9 6-8s-2 7-1 8 4-6 5-5-1 4 0 4 3-2 4-2M3 21h18"/>',
   other: '<rect x="4" y="4" width="16" height="16" rx="3"/>',
 }
 

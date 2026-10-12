@@ -1,10 +1,11 @@
 import {
-  calculated, checkbox, form, lookup, number, page, rating, repeater, select, slider, text, type FormSchema, type LookupQuery,
+  address, calculated, checkbox, dateRange, form, lookup, messagesNe, number, page, rating, repeater, select, signature, slider,
+  text, type FormSchema, type LookupQuery,
 } from '@formknit/core'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Form, useField, useForm, useFormState, type FieldProps } from '../src'
+import { describeAdapter, Form, labelsNe, useField, useForm, useFormState, type FieldProps } from '../src'
 
 afterEach(cleanup)
 
@@ -353,5 +354,59 @@ describe('rating and slider', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ stars: null }), expect.anything())
     fireEvent.change(screen.getByLabelText('Volume'), { target: { value: '7' } })
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ volume: 7 }), expect.anything())
+  })
+})
+
+describe('date range, address, signature and translations', () => {
+  const schema = form('F', [dateRange('stay').label('Stay').required(), address('home').label('Home'), signature('sign').label('Sign')])
+
+  it('edits composite values and validates them', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<Form schema={schema} onSubmit={onSubmit} />)
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(screen.getByText('Stay is required')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Stay start'), { target: { value: '2026-10-05' } })
+    expect(screen.getByText('Stay needs both a start and an end date')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Stay end'), { target: { value: '2026-10-01' } })
+    expect(screen.getByText('Stay cannot end before it starts')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Stay end'), { target: { value: '2026-10-09' } })
+
+    await user.type(screen.getByLabelText('City'), 'Pokhara')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(screen.getByText('Home needs at least a street and a city')).toBeTruthy()
+    await user.type(screen.getByLabelText('Street address'), '12 Lake Road')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(onSubmit).toHaveBeenCalledWith({
+      stay: { start: '2026-10-05', end: '2026-10-09' },
+      home: { line1: '12 Lake Road', line2: '', city: 'Pokhara', region: '', postcode: '', country: '' },
+      sign: '',
+    })
+  })
+
+  it('shows a saved signature and clears it', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const png = 'data:image/png;base64,iVBORw0KGgo='
+    render(<Form schema={schema} defaultValues={{ sign: png }} onChange={onChange} />)
+    expect((screen.getByAltText('Sign (saved)') as HTMLImageElement).src).toBe(png)
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ sign: '' }), expect.anything())
+    expect(screen.getByRole('img', { name: /Sign: draw/ }).tagName).toBe('CANVAS')
+  })
+
+  it('speaks Nepali when given the Nepali messages and labels', async () => {
+    const user = userEvent.setup()
+    render(<Form schema={form('F', [text('name').label('नाम').required()])} compute={{ messages: messagesNe }} labels={labelsNe} />)
+    await user.click(screen.getByRole('button', { name: 'पेस गर्नुहोस्' }))
+    expect(screen.getByText('नाम आवश्यक छ')).toBeTruthy()
+  })
+
+  it('reports what an adapter covers', () => {
+    const report = describeAdapter({ fields: { text: () => null }, layout: { panel: () => null } })
+    expect(report.own).toEqual(['text', 'panel'])
+    expect(report.fallback).toContain('signature')
+    expect(report.missing).toEqual([])
   })
 })

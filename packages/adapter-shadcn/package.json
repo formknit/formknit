@@ -1,0 +1,34 @@
+{
+  "name": "@formknit/adapter-shadcn",
+  "version": "0.0.0",
+  "description": "shadcn/ui components for Formknit forms. Copy registry/formknit.tsx into your project.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "registry",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@formknit/core": "workspace:*",
+    "@formknit/react": "workspace:*",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^26.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formknit/formknit.git",
+    "directory": "packages/adapter-shadcn"
+  }
+}

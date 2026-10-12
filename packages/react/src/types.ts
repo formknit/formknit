@@ -129,3 +129,16 @@ export const defaultLabels: Labels = {
 }
 
 export type { FormSchema }
+
+/** Nepali text for the form chrome: `<Form labels={labelsNe} />`. */
+export const labelsNe: Labels = {
+  submit: 'पेस गर्नुहोस्',
+  next: 'अर्को',
+  back: 'पछाडि',
+  add: 'थप्नुहोस्',
+  remove: 'हटाउनुहोस्',
+  moveUp: 'माथि सार्नुहोस्',
+  moveDown: 'तल सार्नुहोस्',
+  step: (current, total) => `चरण ${current} / ${total}`,
+  unknownField: (type) => `अज्ञात फिल्ड प्रकार "${type}"`,
+}

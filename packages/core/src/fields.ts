@@ -1,5 +1,5 @@
 import { defineField, type FieldDefinition } from './registry'
-import type { ComponentSchema } from './types'
+import { ADDRESS_PARTS, type ComponentSchema } from './types'
 
 const text = (v: unknown) => (v === null || v === undefined ? '' : String(v))
 const NUMERIC = /^-?\d+(\.\d+)?$/
@@ -74,6 +74,46 @@ numeric('rating', 'Rating')
 /** A number picked on a track between `validate.min` and `validate.max`. */
 numeric('slider', 'Slider')
 
+const record = (v: unknown): Record<string, unknown> | null => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null)
+
+defineField({
+  type: 'dateRange',
+  kind: 'input',
+  label: 'Date range',
+  group: 'Basic',
+  emptyValue: null,
+  // Keeps only the two dates; a range with neither is empty.
+  coerce: (v) => {
+    const r = record(v)
+    const range = { start: text(r?.start), end: text(r?.end) }
+    return range.start || range.end ? range : null
+  },
+  check: (v, _c, label, m) => {
+    const { start, end } = v as { start: string; end: string }
+    if (!start || !end) return m.dateRange(label)
+    if (!realDate(start) || !realDate(end)) return m.date(label)
+    return end < start ? m.dateOrder(label) : null
+  },
+})
+
+defineField({
+  type: 'address',
+  kind: 'input',
+  label: 'Address',
+  group: 'Basic',
+  emptyValue: null,
+  // Keeps only the known parts, as text; an address with nothing filled in is empty.
+  coerce: (v) => {
+    const r = record(v)
+    const address = Object.fromEntries(ADDRESS_PARTS.map((part) => [part, text(r?.[part]).trim()]))
+    return Object.values(address).some(Boolean) ? address : null
+  },
+  check: (v, _c, label, m) => {
+    const a = v as { line1: string; city: string }
+    return a.line1 && a.city ? null : m.address(label)
+  },
+})
+
 defineField({ type: 'hidden', kind: 'input', label: 'Hidden', group: 'Basic', emptyValue: null })
 
 const choice = (type: string, label: string) =>
@@ -146,6 +186,16 @@ defineField({
     if (c.accept && !accepts(c.accept, file)) return m.fileType(label, c.accept)
     return null
   },
+})
+/** A drawn signature, stored as a PNG data URL. */
+defineField({
+  type: 'signature',
+  kind: 'input',
+  label: 'Signature',
+  group: 'Data',
+  emptyValue: '',
+  coerce: text,
+  check: (v, _c, label, m) => (/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(v)) ? null : m.signature(label)),
 })
 /** A read-only value fetched from a data source, such as another form's submissions. */
 defineField({ type: 'lookup', kind: 'input', label: 'Lookup', group: 'Data', emptyValue: null })

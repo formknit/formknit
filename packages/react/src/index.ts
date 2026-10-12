@@ -4,7 +4,8 @@ export { useForm, useFormState, useField, useFormContext, FormProvider } from '.
 export { FormStore } from './store'
 export type { FormOptions, FormSnapshot, FieldSnapshot, PageInfo } from './store'
 export { defaultAdapter } from './skin'
-export { defaultLabels } from './types'
+export { defaultLabels, labelsNe } from './types'
+export { describeAdapter } from './kit'
 export type {
   Adapter,
   PartialAdapter,

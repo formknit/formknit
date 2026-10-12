@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
-  calculated, checkSchema, computeState, form, getInitialValues, lookup, number, rating, SchemaError, slider, text, url, validate,
-  validateAsync, type FormSchema, type LookupQuery,
+  address, calculated, checkSchema, computeState, dateRange, defaultMessages, form, getInitialValues, lookup, messagesNe, number,
+  rating, SchemaError, signature, slider, text, url, validate, validateAsync, type Address, type DateRange, type FormSchema,
+  type InferData, type LookupQuery,
 } from '../src'
 
 const page = (components: FormSchema['pages'][0]['components'], extra = {}): FormSchema => ({
@@ -445,5 +446,59 @@ describe('lookups, files and extra fields', () => {
     const schema = form('F', [text('a').width(6).className('fx-hide-label')])
     expect(schema.pages[0].components[0]).toEqual({ type: 'text', key: 'a', width: 6, className: 'fx-hide-label' })
     expect(checkSchema({ ...schema, appearance: { size: 'lg', variant: 'filled' } })).toEqual([])
+  })
+})
+
+describe('date range, address and signature', () => {
+  const schema = form('F', [
+    dateRange('stay').label('Stay').required(),
+    address('home').label('Home'),
+    signature('sign').label('Signature'),
+  ])
+  const png = 'data:image/png;base64,iVBORw0KGgo='
+
+  it('accepts complete values and tidies them', () => {
+    const result = validate(schema, {
+      stay: { start: '2026-10-01', end: '2026-10-05', extra: 1 },
+      home: { line1: ' 12 Lake Road ', city: 'Pokhara', junk: 'x' },
+      sign: png,
+    })
+    expect(result.errors).toEqual({})
+    expect(result.data).toEqual({
+      stay: { start: '2026-10-01', end: '2026-10-05' },
+      home: { line1: '12 Lake Road', line2: '', city: 'Pokhara', region: '', postcode: '', country: '' },
+      sign: png,
+    })
+  })
+
+  it('treats untouched composite fields as empty', () => {
+    const result = validate(schema, { stay: { start: '', end: '' }, home: { line1: '', city: '' }, sign: '' })
+    expect(result.errors).toEqual({ stay: ['Stay is required'] })
+    expect(result.data).toEqual({ stay: null, home: null, sign: '' })
+  })
+
+  it('reports incomplete or wrong values', () => {
+    const check = (data: Record<string, unknown>) => validate(schema, { stay: { start: '2026-10-01', end: '2026-10-05' }, ...data }).errors
+    expect(check({ stay: { start: '2026-10-01', end: '' } })).toEqual({ stay: ['Stay needs both a start and an end date'] })
+    expect(check({ stay: { start: '2026-10-05', end: '2026-10-01' } })).toEqual({ stay: ['Stay cannot end before it starts'] })
+    expect(check({ stay: { start: '2026-02-30', end: '2026-03-01' } })).toEqual({ stay: ['Stay must be a valid date'] })
+    expect(check({ home: { city: 'Pokhara' } })).toEqual({ home: ['Home needs at least a street and a city'] })
+    expect(check({ sign: 'javascript:alert(1)' })).toEqual({ sign: ['Signature needs a signature'] })
+    expect(check({ stay: 'soon', home: 'somewhere' })).toEqual({ stay: ['Stay is required'] })
+  })
+
+  it('infers their types', () => {
+    expectTypeOf<InferData<typeof schema>>().toEqualTypeOf<{ stay: DateRange | null; home: Address | null; sign: string }>()
+  })
+})
+
+describe('Nepali messages', () => {
+  it('covers every message and reads naturally with a label', () => {
+    expect(Object.keys(messagesNe).sort()).toEqual(Object.keys(defaultMessages).sort())
+    const schema = form('F', [text('name').label('नाम').required(), number('age').label('उमेर').min(16)])
+    expect(validate(schema, { age: 10 }, { messages: messagesNe }).errors).toEqual({
+      name: ['नाम आवश्यक छ'],
+      age: ['उमेर कम्तीमा 16 हुनुपर्छ'],
+    })
   })
 })

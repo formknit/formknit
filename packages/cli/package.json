@@ -1,0 +1,41 @@
+{
+  "name": "@formknit/cli",
+  "version": "0.0.0",
+  "description": "Command-line tools for Formknit: check a form schema and generate TypeScript types from it.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "formknit": "./bin/formknit.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@formknit/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formknit/formknit.git",
+    "directory": "packages/cli"
+  }
+}

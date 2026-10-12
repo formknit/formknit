@@ -13,6 +13,8 @@ builder.
 | `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
 | `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, lookups, uploads, drafts, swappable components, themeable responsive skin |
 | `@formknit/adapter-mui` | Working | Renders forms with Material UI components and your MUI theme |
+| `@formknit/adapter-shadcn` | Working, see note | One file you copy into a shadcn/ui project. Tested against stand-in components, not yet inside a real shadcn project |
+| `@formknit/cli` | Working | `formknit check` lists schema problems; `formknit types` generates a TypeScript type |
 | `@formknit/builder` | Working | Drag-and-drop form builder: palette, canvas, settings, rule and formula editors, pages, undo/redo, preview and JSON views |
 
 ## Quick look
@@ -88,7 +90,16 @@ stacks full width, so a form in a narrow sidebar stacks even on a large screen.
   total across many (`sum`, `count`, `avg`, `list`). Formulas can then use the result. On the
   server, `validateAsync(schema, body, { lookup })` fetches them again so a client cannot forge them.
 - **File fields** accept `accept: '.pdf,image/*'` and `validate.maxSizeMb`.
-- **More field types:** web address, star rating, slider.
+- **More field types:** web address, star rating, slider, date range, address, signature.
+- **Nepali** validation messages and button labels (`messagesNe`, `labelsNe`).
+
+## Documentation
+
+The guide lives in `apps/docs`. Read it locally with:
+
+```bash
+pnpm docs:dev   # http://localhost:5174
+```
 
 Let your own users design forms by embedding the builder:
 
@@ -162,6 +173,7 @@ pnpm test
 pnpm typecheck
 pnpm build
 pnpm --filter @formknit/playground dev   # example forms at http://localhost:5173
+pnpm changeset                          # record a change for the next release (see .changeset/README.md)
 ```
 
 ## Licence

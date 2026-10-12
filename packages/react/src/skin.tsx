@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { ADDRESS_PARTS } from '@formknit/core'
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import type {
   Adapter, ButtonProps, ColumnsProps, ContentProps, FieldProps, PanelProps, RepeaterProps, StepsProps,
 } from './types'
@@ -312,6 +313,170 @@ function FileInput(p: FieldProps<unknown>) {
   )
 }
 
+function DateRangeField(p: FieldProps<{ start?: string; end?: string } | null>) {
+  const value = p.value && typeof p.value === 'object' ? p.value : {}
+  const part = (name: 'start' | 'end', text: string) => (
+    <input
+      className="fx-input"
+      type="date"
+      id={name === 'start' ? p.id : undefined}
+      aria-label={`${p.label ?? ''} ${text}`.trim()}
+      value={value[name] ?? ''}
+      min={name === 'end' ? value.start : undefined}
+      disabled={p.disabled}
+      aria-invalid={!!p.error}
+      onChange={(e) => p.onChange({ start: value.start ?? '', end: value.end ?? '', [name]: e.target.value })}
+      onBlur={name === 'end' ? p.onBlur : undefined}
+    />
+  )
+  return (
+    <Shell props={p} group>
+      <div className="fx-range" aria-describedby={describedBy(p)}>
+        {part('start', 'start')}
+        <span className="fx-range-dash" aria-hidden="true">
+          –
+        </span>
+        {part('end', 'end')}
+      </div>
+    </Shell>
+  )
+}
+
+const ADDRESS_LABELS: Record<string, string> = {
+  line1: 'Street address',
+  line2: 'Apartment, suite, etc. (optional)',
+  city: 'City',
+  region: 'State or province',
+  postcode: 'Postcode',
+  country: 'Country',
+}
+const ADDRESS_AUTOCOMPLETE: Record<string, string> = {
+  line1: 'address-line1',
+  line2: 'address-line2',
+  city: 'address-level2',
+  region: 'address-level1',
+  postcode: 'postal-code',
+  country: 'country-name',
+}
+
+function AddressField(p: FieldProps<Record<string, string> | null>) {
+  const value: Record<string, string> = p.value && typeof p.value === 'object' ? p.value : {}
+  // The schema may rename the parts, e.g. `labels: { region: 'District' }`.
+  const names = { ...ADDRESS_LABELS, ...(p.component.labels as Record<string, string> | undefined) }
+  return (
+    <Shell props={p} group>
+      <div className="fx-address" aria-describedby={describedBy(p)}>
+        {ADDRESS_PARTS.map((part, i) => (
+          <label key={part} className={`fx-address-part fx-address-${part}`}>
+            <span className="fx-description">{names[part]}</span>
+            <input
+              className="fx-input"
+              id={i === 0 ? p.id : undefined}
+              autoComplete={ADDRESS_AUTOCOMPLETE[part]}
+              value={value[part] ?? ''}
+              disabled={p.disabled}
+              aria-invalid={!!p.error && (part === 'line1' || part === 'city')}
+              onChange={(e) => p.onChange({ ...value, [part]: e.target.value })}
+              onBlur={i === ADDRESS_PARTS.length - 1 ? p.onBlur : undefined}
+            />
+          </label>
+        ))}
+      </div>
+    </Shell>
+  )
+}
+
+function SignatureField(p: FieldProps<string>) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const drawing = useRef(false)
+  // A signature restored from a draft is shown as a picture until the pad is cleared.
+  const [restored, setRestored] = useState(() => (typeof p.value === 'string' && p.value ? p.value : ''))
+  const hasInk = useRef(false)
+
+  // The form was reset from outside: wipe the pad too.
+  useEffect(() => {
+    if (p.value || !hasInk.current) return
+    const el = canvas.current
+    el?.getContext('2d')?.clearRect(0, 0, el.width, el.height)
+    hasInk.current = false
+  }, [p.value])
+
+  const point = (e: PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+  const start = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (p.disabled) return
+    const el = e.currentTarget
+    const ctx = el.getContext('2d')
+    if (!ctx) return
+    // Size the drawing surface to the element once, sharp on high-density screens.
+    if (!hasInk.current) {
+      const ratio = window.devicePixelRatio || 1
+      el.width = el.clientWidth * ratio
+      el.height = el.clientHeight * ratio
+      ctx.scale(ratio, ratio)
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = getComputedStyle(el).color
+    }
+    el.setPointerCapture?.(e.pointerId)
+    drawing.current = true
+    const { x, y } = point(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+  const move = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return
+    const ctx = e.currentTarget.getContext('2d')
+    const { x, y } = point(e)
+    ctx?.lineTo(x, y)
+    ctx?.stroke()
+    hasInk.current = true
+  }
+  const end = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return
+    drawing.current = false
+    if (hasInk.current) p.onChange(e.currentTarget.toDataURL('image/png'))
+    p.onBlur()
+  }
+  const clear = () => {
+    const el = canvas.current
+    el?.getContext('2d')?.clearRect(0, 0, el.width, el.height)
+    hasInk.current = false
+    setRestored('')
+    p.onChange('')
+  }
+  return (
+    <Shell props={p}>
+      <div className={cx('fx-signature', p.error && 'fx-signature-invalid')}>
+        {restored ? (
+          <img className="fx-signature-pad" src={restored} alt={`${p.label ?? 'Signature'} (saved)`} />
+        ) : (
+          <canvas
+            ref={canvas}
+            id={p.id}
+            className="fx-signature-pad"
+            role="img"
+            aria-label={`${p.label ?? 'Signature'}: draw with a mouse, finger or pen`}
+            aria-describedby={describedBy(p)}
+            onPointerDown={start}
+            onPointerMove={move}
+            onPointerUp={end}
+            onPointerLeave={end}
+          />
+        )}
+        {!p.disabled && (
+          <button type="button" className="fx-button fx-signature-clear" onClick={clear}>
+            Clear
+          </button>
+        )}
+      </div>
+    </Shell>
+  )
+}
+
 const Hidden = () => null
 
 function Panel({ component, children }: PanelProps) {
@@ -432,6 +597,9 @@ export const defaultAdapter: Adapter = {
     rating: Rating,
     slider: Slider,
     lookup: Calculated,
+    dateRange: DateRangeField,
+    address: AddressField,
+    signature: SignatureField,
     textarea: Textarea,
     select: Select,
     radio: Radio,

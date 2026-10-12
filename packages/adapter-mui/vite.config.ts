@@ -19,5 +19,6 @@ export default defineConfig(({ command }) => ({
       external: [/^react($|\/)/, /^react-dom($|\/)/, /^@mui\//, /^@emotion\//, '@formknit/core', '@formknit/react'],
     },
   },
-  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom' },
+  // The single test drives a whole multi-step form through Material UI, which is slow when packages test in parallel.
+  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom', testTimeout: 30000 },
 }))

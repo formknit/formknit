@@ -1,8 +1,9 @@
-import { checkbox, form, number, select, text, validate, type FormSchema } from '@formknit/core'
+import { checkbox, defineField, field, form, number, select, text, validate, type FormSchema, type InferData } from '@formknit/core'
+import type { FieldProps } from '@formknit/react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { FormBuilder } from '../src'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { FormBuilder, registerBuilderField } from '../src'
 
 afterEach(cleanup)
 
@@ -293,5 +294,38 @@ describe('<FormBuilder>', () => {
     expect(screen.getByRole('button', { name: 'Text: one' })).toBeTruthy()
     rerender(<FormBuilder value={b} />)
     expect(screen.getByRole('button', { name: 'Text: two' })).toBeTruthy()
+  })
+
+  it('supports a custom field type end to end, as the guide describes', async () => {
+    defineField({
+      type: 'colour',
+      kind: 'input',
+      label: 'Colour',
+      group: 'Basic',
+      emptyValue: '',
+      coerce: (v) => (typeof v === 'string' ? v.toLowerCase() : ''),
+      check: (value, _c, label) => (/^#[0-9a-f]{6}$/.test(String(value)) ? null : `${label} must be a colour like #1a2b3c`),
+    })
+    registerBuilderField('colour', {
+      icon: '<circle cx="12" cy="12" r="9"/>',
+      defaults: () => ({ label: 'Colour' }),
+      settings: [{ path: 'palette', label: 'Palette name', input: 'text', tab: 'display' }],
+    })
+    const ColourField = (p: FieldProps<string>) => <input aria-label={p.label} data-testid="colour-preview" value={p.value || '#000000'} onChange={(e) => p.onChange(e.target.value)} />
+
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<FormBuilder onChange={onChange} components={{ fields: { colour: ColourField } }} />)
+    await user.click(within(screen.getByRole('navigation', { name: 'Fields' })).getByRole('button', { name: /^Colour$/ }))
+    expect(screen.getByTestId('colour-preview')).toBeTruthy()
+    await user.type(within(screen.getByRole('complementary', { name: 'Settings' })).getByLabelText('Palette name'), 'brand')
+    const built: FormSchema = onChange.mock.calls[onChange.mock.calls.length - 1][0]
+    expect(built.pages[0].components[0]).toEqual({ type: 'colour', label: 'Colour', key: 'colour', palette: 'brand' })
+
+    expect(validate(built, { colour: '#1A2B3C' }).data).toEqual({ colour: '#1a2b3c' })
+    expect(validate(built, { colour: 'red' }).errors).toEqual({ colour: ['Colour must be a colour like #1a2b3c'] })
+
+    const typed = form('Brand', [field<'brand', string>('colour', 'brand', { label: 'Brand colour' })])
+    expectTypeOf<InferData<typeof typed>>().toEqualTypeOf<{ brand: string }>()
   })
 })

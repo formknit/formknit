@@ -1,6 +1,6 @@
 import {
-  calculated, checkbox, columns, content, date, divider, email, field, form, lookup, number, page, panel, radio, rating,
-  repeater, select, slider, text, textarea, url, type LookupQuery,
+  address, calculated, checkbox, columns, content, date, dateRange, divider, email, field, form, lookup, number, page, panel,
+  radio, rating, repeater, select, signature, slider, text, textarea, url, type LookupQuery,
 } from '@formknit/core'
 
 export const admission = form(
@@ -71,6 +71,9 @@ export const showcase = form(
     field('file', 'cv', { label: 'CV', accept: '.pdf', validate: { maxSizeMb: 1 }, description: 'PDF, up to 1 MB', width: 6 }),
     rating('satisfaction').label('How satisfied are you?').width(6),
     slider('confidence').label('Confidence').min(0).max(10).width(6),
+    dateRange('stay').label('Dates of stay').width(6),
+    signature('sign').label('Signature').width(6),
+    address('home').label('Home address'),
     panel('Feedback', [
       radio('recommend', { yes: 'Yes', maybe: 'Maybe', no: 'No' }).label('Would you recommend us?').className('fx-stack-choices').width(4),
       textarea('comments').label('Comments').width(8),

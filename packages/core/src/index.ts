@@ -12,7 +12,11 @@ export type {
   SchemaIssue,
   LookupQuery,
   Appearance,
+  DateRange,
+  Address,
 } from './types'
+export { ADDRESS_PARTS } from './types'
+export { messagesNe } from './locales/ne'
 export { defineField, getField, listFields } from './registry'
 export type { FieldDefinition, FieldKind } from './registry'
 export { defaultMessages } from './messages'
@@ -54,6 +58,9 @@ export {
   rating,
   slider,
   lookup,
+  dateRange,
+  address,
+  signature,
   calculated,
   repeater,
   panel,

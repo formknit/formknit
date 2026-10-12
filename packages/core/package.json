@@ -4,8 +4,13 @@
   "description": "Schema, validation and formula engine for Formknit forms. No dependencies; runs in browsers, Node and Bun.",
   "license": "MIT",
   "type": "module",
-  "sideEffects": ["./src/fields.ts", "./dist/*"],
-  "files": ["dist"],
+  "sideEffects": [
+    "./src/fields.ts",
+    "./dist/*"
+  ],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,5 +25,13 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formknit/formknit.git",
+    "directory": "packages/core"
   }
 }

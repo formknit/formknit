@@ -124,3 +124,21 @@ export interface SchemaIssue {
   /** Where in the schema, e.g. `items.amount`. */
   path: string
 }
+
+export interface DateRange {
+  /** `YYYY-MM-DD` */
+  start: string
+  /** `YYYY-MM-DD` */
+  end: string
+}
+
+export interface Address {
+  line1: string
+  line2: string
+  city: string
+  region: string
+  postcode: string
+  country: string
+}
+
+export const ADDRESS_PARTS = ['line1', 'line2', 'city', 'region', 'postcode', 'country'] as const
