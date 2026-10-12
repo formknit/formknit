@@ -1,6 +1,6 @@
 import { compile, ExprSyntaxError, functionNames, getField, type ComponentSchema, type FormSchema, type Option } from '@formknit/core'
 import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
-import { fromExpression, OPERATORS, toExpression, type Rule, type RuleSet } from './conditions'
+import { fromExpression, isGroup, OPERATORS, toExpression, type Rule, type RuleSet } from './conditions'
 import { cx, useBuilder } from './context'
 import { settingsFor, type Setting, type SettingTab } from './meta'
 import {
@@ -136,6 +136,95 @@ function OptionsEditor({ options, onChange }: { options: Option[]; onChange: (op
 const NUMERIC_TYPES = new Set(['number', 'calculated'])
 const BOOLEAN_TYPES = new Set(['checkbox', 'toggle'])
 
+/** The rows of one rule set: its rules, and at the top level its groups. */
+function RuleRows({ set, fields, depth, onChange }: { set: RuleSet; fields: ScopeField[]; depth: number; onChange: (next: RuleSet) => void }) {
+  const edit = (i: number, node: Rule | RuleSet) => onChange({ ...set, rules: set.rules.map((r, n) => (n === i ? node : r)) })
+  const remove = (i: number) => onChange({ ...set, rules: set.rules.filter((_, n) => n !== i) })
+  const name = depth === 0 ? 'Rule' : 'Group rule'
+  return (
+    <>
+      {set.rules.length > 1 && (
+        <div className="fxb-segment" role="group" aria-label={depth === 0 ? 'How rules combine' : 'How this group combines'}>
+          {(['all', 'any'] as const).map((mode) => (
+            <button key={mode} type="button" className={cx(set.mode === mode && 'fxb-active')} aria-pressed={set.mode === mode} onClick={() => onChange({ ...set, mode })}>
+              {mode === 'all' ? 'All of these' : 'Any of these'}
+            </button>
+          ))}
+        </div>
+      )}
+      {set.rules.map((node, i) => {
+        if (isGroup(node)) {
+          return (
+            <div className="fxb-rule-group" key={i}>
+              <div className="fxb-rule-line">
+                <span className="fxb-group-title">Group</span>
+                <span className="fxb-spacer" />
+                <button type="button" className="fxb-action" aria-label={`Remove group ${i + 1}`} onClick={() => remove(i)}>
+                  ×
+                </button>
+              </div>
+              <RuleRows set={node} fields={fields} depth={depth + 1} onChange={(next) => edit(i, next)} />
+            </div>
+          )
+        }
+        const type = fields.find((f) => f.key === node.field)?.type ?? ''
+        const operator = OPERATORS.find((o) => o.op === node.op)!
+        return (
+          <div className="fxb-rule" key={i}>
+            <div className="fxb-rule-line">
+              <select
+                className="fxb-input"
+                aria-label={`${name} ${i + 1} field`}
+                value={node.field}
+                onChange={(e) => {
+                  const nextType = fields.find((f) => f.key === e.target.value)?.type ?? ''
+                  edit(i, { ...node, field: e.target.value, ...(BOOLEAN_TYPES.has(nextType) ? { op: 'checked' as const, value: '' } : {}) })
+                }}
+              >
+                <option value="">Choose a field…</option>
+                {fields.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="fxb-action" aria-label={`Remove ${name.toLowerCase()} ${i + 1}`} onClick={() => remove(i)}>
+                ×
+              </button>
+            </div>
+            <div className="fxb-rule-line">
+              <select className="fxb-input" aria-label={`${name} ${i + 1} comparison`} value={node.op} onChange={(e) => edit(i, { ...node, op: e.target.value as Rule['op'] })}>
+                {OPERATORS.filter((o) => (BOOLEAN_TYPES.has(type) ? !o.needsValue : true)).map((o) => (
+                  <option key={o.op} value={o.op}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {operator.needsValue && (
+                <input className="fxb-input" aria-label={`${name} ${i + 1} value`} value={node.value} onChange={(e) => edit(i, { ...node, value: e.target.value })} />
+              )}
+            </div>
+          </div>
+        )
+      })}
+      <div className="fxb-rule-line">
+        <button type="button" className="fxb-button" onClick={() => onChange({ ...set, rules: [...set.rules, { field: '', op: 'eq', value: '' }] })}>
+          + {depth === 0 ? 'Add rule' : 'Add to group'}
+        </button>
+        {depth === 0 && (
+          <button
+            type="button"
+            className="fxb-button"
+            onClick={() => onChange({ ...set, rules: [...set.rules, { mode: set.mode === 'all' ? 'any' : 'all', rules: [{ field: '', op: 'eq', value: '' }] }] })}
+          >
+            + Add group
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
 /** Builds a condition from rows of "field, comparison, value", or as a typed formula. */
 function RulesEditor({ value, fields, onChange }: { value: string; fields: ScopeField[]; onChange: (value: string) => void }) {
   const parsed = fromExpression(value)
@@ -147,7 +236,6 @@ function RulesEditor({ value, fields, onChange }: { value: string; fields: Scope
     setSet(next)
     onChange(toExpression(next, numeric))
   }
-  const editRule = (i: number, patch: Partial<Rule>) => update({ ...set, rules: set.rules.map((r, n) => (n === i ? { ...r, ...patch } : r)) })
 
   if (raw) {
     return (
@@ -171,59 +259,10 @@ function RulesEditor({ value, fields, onChange }: { value: string; fields: Scope
   return (
     <div className="fxb-rules">
       {set.rules.length === 0 && <div className="fxb-help">Always shown. Add a rule to show it only sometimes.</div>}
-      {set.rules.length > 1 && (
-        <div className="fxb-segment" role="group" aria-label="How rules combine">
-          {(['all', 'any'] as const).map((mode) => (
-            <button key={mode} type="button" className={cx(set.mode === mode && 'fxb-active')} aria-pressed={set.mode === mode} onClick={() => update({ ...set, mode })}>
-              {mode === 'all' ? 'All rules' : 'Any rule'}
-            </button>
-          ))}
-        </div>
-      )}
-      {set.rules.map((rule, i) => {
-        const type = fields.find((f) => f.key === rule.field)?.type ?? ''
-        const operator = OPERATORS.find((o) => o.op === rule.op)!
-        return (
-          <div className="fxb-rule" key={i}>
-            <div className="fxb-rule-line">
-              <select className="fxb-input" aria-label={`Rule ${i + 1} field`} value={rule.field} onChange={(e) => {
-                const nextType = fields.find((f) => f.key === e.target.value)?.type ?? ''
-                editRule(i, { field: e.target.value, ...(BOOLEAN_TYPES.has(nextType) ? { op: 'checked' as const, value: '' } : {}) })
-              }}>
-                <option value="">Choose a field…</option>
-                {fields.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="fxb-action" aria-label={`Remove rule ${i + 1}`} onClick={() => update({ ...set, rules: set.rules.filter((_, n) => n !== i) })}>
-                ×
-              </button>
-            </div>
-            <div className="fxb-rule-line">
-              <select className="fxb-input" aria-label={`Rule ${i + 1} comparison`} value={rule.op} onChange={(e) => editRule(i, { op: e.target.value as Rule['op'] })}>
-                {OPERATORS.filter((o) => (BOOLEAN_TYPES.has(type) ? !o.needsValue : true)).map((o) => (
-                  <option key={o.op} value={o.op}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {operator.needsValue && (
-                <input className="fxb-input" aria-label={`Rule ${i + 1} value`} value={rule.value} onChange={(e) => editRule(i, { value: e.target.value })} />
-              )}
-            </div>
-          </div>
-        )
-      })}
-      <div className="fxb-rule-line">
-        <button type="button" className="fxb-button" onClick={() => update({ ...set, rules: [...set.rules, { field: '', op: 'eq', value: '' }] })}>
-          + Add rule
-        </button>
-        <button type="button" className="fxb-link" onClick={() => setRaw(true)}>
-          Write a formula
-        </button>
-      </div>
+      <RuleRows set={set} fields={fields} depth={0} onChange={update} />
+      <button type="button" className="fxb-link" onClick={() => setRaw(true)}>
+        Write a formula
+      </button>
     </div>
   )
 }
@@ -327,6 +366,26 @@ function SettingField({ setting: s, target, fields, edit }: SettingFieldProps) {
       return (
         <Row label={s.label} htmlFor={id}>
           <FormulaEditor id={id} value={text} fields={fields} onChange={(next) => edit((t) => (t.expression = next), s.path)} />
+        </Row>
+      )
+    case 'select':
+      return (
+        <Row label={s.label} help={s.help} htmlFor={id}>
+          <select
+            id={id}
+            className="fxb-input"
+            value={value === undefined ? '' : String(value)}
+            onChange={(e) => {
+              const picked = (s.choices ?? []).find((c) => String(c.value) === e.target.value)
+              set(picked && picked.value !== '' ? picked.value : undefined)
+            }}
+          >
+            {(s.choices ?? []).map((c) => (
+              <option key={String(c.value)} value={String(c.value)}>
+                {c.label}
+              </option>
+            ))}
+          </select>
         </Row>
       )
     case 'columns': {
@@ -455,7 +514,22 @@ function ComponentSettings({ path }: { path: Path }) {
 }
 
 const text = (path: string, label: string, help?: string): Setting => ({ path, label, input: 'text', tab: 'display', help })
-const FORM_SETTINGS = [text('title', 'Form title'), text('description', 'Description'), text('submitLabel', 'Submit button label', 'Defaults to "Submit"')]
+const pick = (path: string, label: string, choices: [string, string][]): Setting => ({
+  path,
+  label,
+  input: 'select',
+  tab: 'display',
+  choices: choices.map(([value, text]) => ({ value, label: text })),
+})
+const FORM_SETTINGS = [
+  text('title', 'Form title'),
+  text('description', 'Description'),
+  text('submitLabel', 'Submit button label', 'Defaults to "Submit"'),
+  pick('appearance.size', 'Size', [['', 'Medium'], ['sm', 'Small'], ['lg', 'Large']]),
+  pick('appearance.variant', 'Field style', [['', 'Outlined'], ['filled', 'Filled'], ['underline', 'Underline']]),
+  pick('appearance.labelPosition', 'Labels', [['', 'Above the field'], ['left', 'Beside the field']]),
+  pick('appearance.theme', 'Theme', [['', 'Light'], ['dark', 'Dark'], ['auto', 'Match the system']]),
+]
 const PAGE_SETTINGS: Setting[] = [
   text('title', 'Page title'),
   text('description', 'Description'),

@@ -56,7 +56,7 @@ function Shell({ props: p, group, ownLabel, children }: ShellProps) {
   return group ? <fieldset className={className}>{body}</fieldset> : <div className={className}>{body}</div>
 }
 
-const INPUT_TYPE: Record<string, string> = { email: 'email', phone: 'tel', date: 'date', time: 'time' }
+const INPUT_TYPE: Record<string, string> = { email: 'email', phone: 'tel', date: 'date', time: 'time', url: 'url' }
 
 function Input(p: FieldProps<string | number | null>) {
   const numeric = p.component.type === 'number'
@@ -209,33 +209,105 @@ function Checkbox(p: FieldProps<boolean>) {
 }
 
 function Calculated(p: FieldProps<unknown>) {
-  const text = p.value === null || p.value === undefined ? '' : String(p.value)
+  const text = p.value === null || p.value === undefined ? '' : Array.isArray(p.value) ? p.value.join(', ') : String(p.value)
   return (
     <Shell props={p}>
-      <output className="fx-input fx-output" id={p.id} aria-describedby={describedBy(p)}>
-        {text || ' '}
+      <output className={cx('fx-input fx-output', p.loading && 'fx-loading')} id={p.id} aria-describedby={describedBy(p)} aria-busy={p.loading || undefined}>
+        {text || '\u00a0'}
       </output>
     </Shell>
   )
 }
 
-function FileInput(p: FieldProps<unknown>) {
-  const name = p.value && typeof p.value === 'object' && 'name' in p.value ? String(p.value.name) : ''
+function Rating(p: FieldProps<number | string | null>) {
+  const max = typeof p.component.max === 'number' ? p.component.max : 5
+  const value = Number(p.value) || 0
+  return (
+    <Shell props={p} group>
+      <div className="fx-rating" role="radiogroup" aria-describedby={describedBy(p)}>
+        {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+          <label key={n} className={cx('fx-star', n <= value && 'fx-star-on')}>
+            <input
+              type="radio"
+              className="fx-visually-hidden"
+              id={n === 1 ? p.id : undefined}
+              name={p.id}
+              checked={value === n}
+              disabled={p.disabled}
+              aria-label={`${n} of ${max}`}
+              // Clicking the current rating again clears it.
+              onClick={() => value === n && p.onChange(null)}
+              onChange={() => p.onChange(n)}
+              onBlur={p.onBlur}
+            />
+            <span aria-hidden="true">★</span>
+          </label>
+        ))}
+      </div>
+    </Shell>
+  )
+}
+
+function Slider(p: FieldProps<number | string | null>) {
+  const min = typeof p.component.validate?.min === 'number' ? p.component.validate.min : 0
+  const max = typeof p.component.validate?.max === 'number' ? p.component.validate.max : 100
+  const shown = p.value === null || p.value === undefined || p.value === '' ? min : Number(p.value)
   return (
     <Shell props={p}>
-      <input
-        className="fx-input fx-file"
-        id={p.id}
-        name={p.path}
-        type="file"
-        disabled={p.disabled}
-        aria-invalid={!!p.error}
-        aria-describedby={describedBy(p)}
-        // The Form turns the chosen File into a stored value (see `onUpload`).
-        onChange={(e) => p.onChange(e.target.files?.[0] ?? null)}
-        onBlur={p.onBlur}
-      />
-      {name && <div className="fx-description">{name}</div>}
+      <div className="fx-slider">
+        <input
+          type="range"
+          id={p.id}
+          name={p.path}
+          min={min}
+          max={max}
+          step={typeof p.component.step === 'number' ? p.component.step : 1}
+          value={shown}
+          disabled={p.disabled}
+          aria-describedby={describedBy(p)}
+          onChange={(e) => p.onChange(Number(e.target.value))}
+          onBlur={p.onBlur}
+        />
+        <output className="fx-slider-value" htmlFor={p.id}>
+          {p.value === null || p.value === undefined || p.value === '' ? '–' : String(p.value)}
+        </output>
+      </div>
+    </Shell>
+  )
+}
+
+const fileSize = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
+
+function FileInput(p: FieldProps<unknown>) {
+  const file = p.value && typeof p.value === 'object' ? (p.value as { name?: unknown; size?: unknown }) : null
+  return (
+    <Shell props={p}>
+      {file ? (
+        <div className="fx-input fx-file-chosen">
+          <span className="fx-file-name">{String(file.name ?? 'File')}</span>
+          {typeof file.size === 'number' && <span className="fx-description">{fileSize(file.size)}</span>}
+          {!p.disabled && (
+            <button type="button" className="fx-icon-button" aria-label={`Remove ${String(file.name ?? 'file')}`} onClick={() => p.onChange(null)}>
+              ×
+            </button>
+          )}
+        </div>
+      ) : (
+        <input
+          className={cx('fx-input fx-file', p.loading && 'fx-loading')}
+          id={p.id}
+          name={p.path}
+          type="file"
+          accept={p.component.accept}
+          disabled={p.disabled || p.loading}
+          aria-invalid={!!p.error}
+          aria-busy={p.loading || undefined}
+          aria-describedby={describedBy(p)}
+          // The Form turns the chosen File into a stored value (see `onUpload`).
+          onChange={(e) => p.onChange(e.target.files?.[0] ?? null)}
+          onBlur={p.onBlur}
+        />
+      )}
     </Shell>
   )
 }
@@ -290,7 +362,7 @@ function Repeater(p: RepeaterProps) {
       {p.description && <div className="fx-description">{p.description}</div>}
       {p.rows.map((row) => (
         <div className={cx('fx-row', row.index === 0 && 'fx-row-first')} key={row.index}>
-          <div className="fx-row-fields fx-stack">{row.children}</div>
+          <div className={cx('fx-row-fields fx-stack', p.component.compact === true && 'fx-compact-row')}>{row.children}</div>
           {!p.disabled && (
             <div className="fx-row-actions">
               {row.moveUp && (
@@ -356,6 +428,10 @@ export const defaultAdapter: Adapter = {
     date: Input,
     time: Input,
     number: Input,
+    url: Input,
+    rating: Rating,
+    slider: Slider,
+    lookup: Calculated,
     textarea: Textarea,
     select: Select,
     radio: Radio,

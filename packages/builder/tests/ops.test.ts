@@ -92,11 +92,17 @@ describe('schema operations', () => {
     expect(newComponent('columns').columns).toHaveLength(2)
     expect(newComponent('divider')).toEqual({ type: 'divider' })
     expect(settingsFor('text').map((x) => x.path)).toEqual([
-      'label', 'key', 'placeholder', 'description', 'validate.required', 'validate.minLength', 'validate.maxLength',
-      'validate.pattern', 'validate.patternMessage', 'visibleWhen', 'requiredWhen', 'disabledWhen',
+      'label', 'key', 'placeholder', 'description', 'width', 'className', 'validate.required', 'validate.minLength',
+      'validate.maxLength', 'validate.pattern', 'validate.patternMessage', 'visibleWhen', 'requiredWhen', 'disabledWhen',
     ])
-    expect(settingsFor('calculated').map((x) => x.path)).toEqual(['label', 'key', 'expression', 'description', 'visibleWhen'])
-    expect(settingsFor('divider').map((x) => x.path)).toEqual(['visibleWhen'])
+    expect(settingsFor('calculated').map((x) => x.path)).toEqual(['label', 'key', 'expression', 'description', 'width', 'className', 'visibleWhen'])
+    expect(settingsFor('lookup').map((x) => x.path)).toEqual([
+      'label', 'key', 'source', 'matchField', 'matchValue', 'returnField', 'aggregate', 'description', 'width', 'className',
+      'validate.required', 'visibleWhen',
+    ])
+    expect(settingsFor('divider').map((x) => x.path)).toEqual(['width', 'className', 'visibleWhen'])
+    expect(settingsFor('hidden').map((x) => x.path)).not.toContain('width')
+    expect(newComponent('slider')).toEqual({ type: 'slider', label: 'Slider', validate: { min: 0, max: 100 } })
   })
 })
 
@@ -150,8 +156,30 @@ describe('rules and expressions', () => {
     expect(fromExpression(undefined)).toEqual({ mode: 'all', rules: [] })
   })
 
+  it('handles one level of grouping in both directions', () => {
+    const set = {
+      mode: 'all' as const,
+      rules: [
+        { field: 'country', op: 'eq' as const, value: 'NP' },
+        {
+          mode: 'any' as const,
+          rules: [
+            { field: 'age', op: 'gte' as const, value: '16' },
+            { field: 'consent', op: 'checked' as const, value: '' },
+          ],
+        },
+      ],
+    }
+    const expression = 'country == "NP" AND (age >= 16 OR consent == true)'
+    expect(toExpression(set, numeric)).toBe(expression)
+    expect(fromExpression(expression)).toEqual(set)
+    // A group with one finished rule needs no brackets; an unfinished group is left out.
+    expect(toExpression({ mode: 'any', rules: [{ field: 'a', op: 'eq', value: '1' }, { mode: 'all', rules: [{ field: 'b', op: 'empty', value: '' }, { field: '', op: 'eq', value: '' }] }] })).toBe('a == "1" OR ISEMPTY(b)')
+    expect(toExpression({ mode: 'all', rules: [{ mode: 'any', rules: [{ field: '', op: 'eq', value: '' }] }] })).toBe('')
+  })
+
   it('gives up on expressions the rule editor cannot show', () => {
-    expect(fromExpression('a == 1 AND (b == 2 OR c == 3)')).toBeNull()
+    expect(fromExpression('a == 1 AND (b == 2 OR (c == 3 AND d == 4))')).toBeNull()
     expect(fromExpression('qty * rate > 100')).toBeNull()
     expect(fromExpression('a == b')).toBeNull()
     expect(fromExpression('LEN(a) > 3')).toBeNull()

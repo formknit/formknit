@@ -1,7 +1,7 @@
 import { evaluateAst, isError, truthy, type Compiled, type ExprFunction } from './expr'
 import { defaultMessages, type Messages } from './messages'
 import { getModel, type Node, type Scope } from './model'
-import type { ComponentSchema, FormSchema, FormValues, SchemaIssue } from './types'
+import type { ComponentSchema, FormSchema, FormValues, LookupQuery, SchemaIssue } from './types'
 
 export interface FieldState {
   /** Location in the data, e.g. `email` or `items.0.qty`. */
@@ -16,6 +16,11 @@ export interface FieldState {
   disabled: boolean
   value: unknown
   errors: string[]
+  /**
+   * Lookup fields only: what to fetch for this field, or null when there is nothing to
+   * match on yet and the value should be empty. A renderer or the server resolves it.
+   */
+  lookup?: LookupQuery | null
 }
 
 export interface PageState {
@@ -266,10 +271,19 @@ export function computeState(schema: FormSchema, input: FormValues = {}, opts: C
         return !isError(result) && truthy(result)
       }
       const required = !!c.validate?.required || flag(node.required)
-      const disabled = node.kind === 'calculated' || flag(node.disabled)
-      const checked = visible && (node.kind === 'calculated' || !disabled)
+      // Formulas and lookups are worked out for the user, so they are read-only but still validated.
+      const derived = node.kind === 'calculated' || c.type === 'lookup'
+      const disabled = derived || flag(node.disabled)
+      const checked = visible && (derived || !disabled)
       const fieldErrors = checked ? validateValue(node, value, required, ctx, path) : []
       fields[path] = { path, key, page: pageIndex, type: c.type, component: c, visible, required, disabled, value, errors: fieldErrors }
+      if (c.type === 'lookup') {
+        const match = node.match ? run(node.match, ctx) : null
+        const usable = visible && !!c.source && !!c.matchField && !isError(match) && !blank(match)
+        fields[path].lookup = usable
+          ? { source: c.source!, where: { [c.matchField!]: match }, select: c.returnField, aggregate: c.aggregate ?? 'first' }
+          : null
+      }
       if (fieldErrors.length) {
         errors[path] = fieldErrors
         pages[pageIndex].valid = false

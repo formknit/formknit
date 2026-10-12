@@ -1,6 +1,6 @@
 import { getField, listFields, type ComponentSchema } from '@formknit/core'
 
-export type SettingInput = 'text' | 'textarea' | 'number' | 'checkbox' | 'options' | 'expression' | 'formula' | 'rules' | 'columns' | 'key'
+export type SettingInput = 'text' | 'textarea' | 'number' | 'checkbox' | 'select' | 'options' | 'expression' | 'formula' | 'rules' | 'columns' | 'key'
 export type SettingTab = 'display' | 'validation' | 'logic'
 
 export interface Setting {
@@ -10,6 +10,8 @@ export interface Setting {
   input: SettingInput
   tab: SettingTab
   help?: string
+  /** Choices for a `select` setting. An empty value clears the property. */
+  choices?: { label: string; value: string | number }[]
 }
 
 export interface BuilderField {
@@ -39,6 +41,36 @@ const LENGTH = [
 ]
 const ITEMS = [s('validate.minItems', 'Minimum items', 'number', 'validation'), s('validate.maxItems', 'Maximum items', 'number', 'validation')]
 const OPTIONS = s('options', 'Options', 'options', 'display')
+const WIDTH: Setting = {
+  ...s('width', 'Width', 'select', 'display', 'Narrow forms always stack fields full width'),
+  choices: [
+    { label: 'Full width', value: '' },
+    { label: 'Three quarters', value: 9 },
+    { label: 'Two thirds', value: 8 },
+    { label: 'Half', value: 6 },
+    { label: 'One third', value: 4 },
+    { label: 'One quarter', value: 3 },
+  ],
+}
+const CLASS = s('className', 'CSS classes', 'text', 'display', 'e.g. fx-hide-label, or your own')
+const RANGE = [s('validate.min', 'Minimum', 'number', 'validation'), s('validate.max', 'Maximum', 'number', 'validation')]
+const LOOKUP: Setting[] = [
+  s('source', 'Data source', 'text', 'display', 'The name your app gives the data, e.g. students'),
+  s('matchField', 'Field to match in the source', 'text', 'display'),
+  s('matchValue', 'Value to match', 'expression', 'display', 'Usually another field in this form'),
+  s('returnField', 'Field to return', 'text', 'display'),
+  {
+    ...s('aggregate', 'If several records match', 'select', 'display'),
+    choices: [
+      { label: 'Use the first', value: '' },
+      { label: 'Use the last', value: 'last' },
+      { label: 'Add them up', value: 'sum' },
+      { label: 'Count them', value: 'count' },
+      { label: 'Average them', value: 'avg' },
+      { label: 'List them all', value: 'list' },
+    ],
+  },
+]
 
 const twoOptions = () => ({
   options: [
@@ -68,6 +100,10 @@ const ICONS: Record<string, string> = {
   repeater: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/>',
   content: '<path d="M6 5v14M18 5v14M6 12h12"/>',
   divider: '<path d="M3 12h18"/>',
+  url: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  rating: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>',
+  slider: '<path d="M3 12h18"/><circle cx="9" cy="12" r="3"/>',
+  lookup: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   other: '<rect x="4" y="4" width="16" height="16" rx="3"/>',
 }
 
@@ -76,7 +112,12 @@ const registry = new Map<string, BuilderField>([
   ['textarea', { settings: [PLACEHOLDER, s('rows', 'Rows', 'number', 'display'), ...LENGTH] }],
   ['email', { settings: [PLACEHOLDER] }],
   ['phone', { settings: [PLACEHOLDER] }],
-  ['number', { settings: [PLACEHOLDER, s('validate.min', 'Minimum', 'number', 'validation'), s('validate.max', 'Maximum', 'number', 'validation')] }],
+  ['number', { settings: [PLACEHOLDER, ...RANGE] }],
+  ['url', { settings: [PLACEHOLDER] }],
+  ['rating', { defaults: () => ({ max: 5 }), settings: [s('max', 'Number of stars', 'number', 'display')] }],
+  ['slider', { defaults: () => ({ validate: { min: 0, max: 100 } }), settings: [s('step', 'Step', 'number', 'display'), ...RANGE] }],
+  ['file', { settings: [s('accept', 'Accepted types', 'text', 'validation', 'e.g. .pdf,image/*'), s('validate.maxSizeMb', 'Largest size (MB)', 'number', 'validation')] }],
+  ['lookup', { settings: LOOKUP }],
   ['date', { settings: [s('validate.min', 'Earliest date', 'text', 'validation', 'YYYY-MM-DD'), s('validate.max', 'Latest date', 'text', 'validation', 'YYYY-MM-DD')] }],
   ['select', { defaults: twoOptions, settings: [PLACEHOLDER, OPTIONS] }],
   ['radio', { defaults: twoOptions, settings: [OPTIONS] }],
@@ -99,12 +140,16 @@ export const iconFor = (type: string): string => registry.get(type)?.icon ?? ICO
 export function settingsFor(type: string): Setting[] {
   const kind = getField(type)?.kind
   const extra = registry.get(type)?.settings ?? []
-  if (kind === 'content') return [...extra, VISIBLE]
-  if (kind === 'layout') return [...(type === 'panel' ? [LABEL] : []), ...extra, VISIBLE]
-  if (kind === 'calculated') return [LABEL, KEY, ...extra, DESCRIPTION, VISIBLE]
-  if (kind === 'repeater') return [LABEL, KEY, DESCRIPTION, REQUIRED, ...extra, VISIBLE, REQUIRED_WHEN]
+  const layout = [WIDTH, CLASS]
+  if (kind === 'content') return [...extra, ...layout, VISIBLE]
+  if (kind === 'layout') return [...(type === 'panel' ? [LABEL] : []), ...extra, ...layout, VISIBLE]
+  if (kind === 'calculated' || type === 'lookup') return [LABEL, KEY, ...extra, DESCRIPTION, ...layout, ...(type === 'lookup' ? [REQUIRED] : []), VISIBLE]
+  if (kind === 'repeater') return [LABEL, KEY, DESCRIPTION, ...extra.filter((x) => x.tab === 'display'), ...layout, REQUIRED, ...extra.filter((x) => x.tab !== 'display'), VISIBLE, REQUIRED_WHEN]
   const label = type === 'hidden' ? [] : [LABEL]
-  return [...label, KEY, ...extra.filter((x) => x.tab === 'display'), DESCRIPTION, REQUIRED, ...extra.filter((x) => x.tab !== 'display'), VISIBLE, REQUIRED_WHEN, DISABLED_WHEN]
+  return [
+    ...label, KEY, ...extra.filter((x) => x.tab === 'display'), DESCRIPTION, ...(type === 'hidden' ? [] : layout),
+    REQUIRED, ...extra.filter((x) => x.tab !== 'display'), VISIBLE, REQUIRED_WHEN, DISABLED_WHEN,
+  ]
 }
 
 /** A new component of the given type, without a key. */

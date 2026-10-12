@@ -1,5 +1,7 @@
-import { getField, type ComponentSchema, type FormSchema } from '@formknit/core'
-import { memo, useEffect, useId, useMemo, useRef, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
+import { getField, type Appearance, type ComponentSchema, type FormSchema } from '@formknit/core'
+import {
+  memo, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type ReactNode,
+} from 'react'
 import { FormProvider, useField, useForm, useFormContext, useFormState } from './hooks'
 import { defaultAdapter } from './skin'
 import type { FormOptions, FormStore } from './store'
@@ -16,37 +18,41 @@ const FieldItem = memo(function FieldItem({ component: c, rowPath }: { component
   const { store, adapter, idPrefix } = useFormContext()
   const path = join(rowPath, c.key!)
   const field = useField(path)
+  const [uploading, setUploading] = useState(false)
   const Component = adapter.fields[c.type]
   if (!Component) return <Unknown type={c.type} />
   const onChange = (value: unknown) => {
+    if (typeof File === 'undefined' || !(value instanceof File)) return field.setValue(value)
+    // Keep something serialisable in the data: the file's details, plus whatever the upload returns.
+    const details = { name: value.name, size: value.size, type: value.type }
     const upload = store.options.onUpload
-    if (typeof File !== 'undefined' && value instanceof File) {
-      // Keep something serialisable in the data: the upload result, or the file's details.
-      const describe = { name: value.name, size: value.size, type: value.type }
-      if (!upload) return field.setValue(describe)
-      return void Promise.resolve(upload(value)).then((stored) => field.setValue(stored ?? describe))
-    }
-    field.setValue(value)
+    if (!upload) return field.setValue(details)
+    setUploading(true)
+    Promise.resolve()
+      .then(() => upload(value))
+      .then(
+        (stored) => field.setValue(typeof stored === 'object' && stored !== null ? { ...details, ...stored } : { ...details, url: stored }),
+        () => field.setValue(null),
+      )
+      .finally(() => setUploading(false))
   }
   return (
-    // `display: contents`, so this wrapper never affects an adapter's layout.
-    <div className="fx-slot" data-fx-path={path}>
-      <Component
-        id={`${idPrefix}-${path.replace(/\./g, '-')}`}
-        path={path}
-        component={c}
-        label={c.label}
-        description={c.description}
-        placeholder={c.placeholder}
-        options={c.options ?? []}
-        value={field.value}
-        onChange={onChange}
-        onBlur={field.onBlur}
-        error={field.error}
-        required={field.required}
-        disabled={field.disabled}
-      />
-    </div>
+    <Component
+      id={`${idPrefix}-${path.replace(/\./g, '-')}`}
+      path={path}
+      component={c}
+      label={c.label}
+      description={c.description}
+      placeholder={c.placeholder}
+      options={c.options ?? []}
+      value={field.value}
+      onChange={onChange}
+      onBlur={field.onBlur}
+      error={field.error}
+      required={field.required}
+      disabled={field.disabled}
+      loading={field.loading || uploading}
+    />
   )
 })
 
@@ -70,7 +76,6 @@ const RepeaterItem = memo(function RepeaterItem({ component: c, rowPath }: { com
   }))
   const Repeater = adapter.layout.repeater
   return (
-    <div className="fx-slot" data-fx-path={path}>
       <Repeater
         id={`${idPrefix}-${path.replace(/\./g, '-')}`}
         path={path}
@@ -84,15 +89,12 @@ const RepeaterItem = memo(function RepeaterItem({ component: c, rowPath }: { com
         disabled={field.disabled}
         labels={labels}
       />
-    </div>
   )
 })
 
-const Item = memo(function Item({ component: c, rowPath }: { component: ComponentSchema; rowPath: string }) {
-  const { store, adapter } = useFormContext()
-  const get = () => store.isVisible(c, rowPath)
-  const visible = useSyncExternalStore(store.subscribe, get, get)
-  if (!visible) return null
+/** What a component renders, before it is placed in a grid cell. */
+function Body({ component: c, rowPath }: { component: ComponentSchema; rowPath: string }) {
+  const { adapter } = useFormContext()
   const kind = getField(c.type)?.kind
   if (kind === 'input' || kind === 'calculated') return c.key ? <FieldItem component={c} rowPath={rowPath} /> : null
   if (kind === 'repeater') return c.key ? <RepeaterItem component={c} rowPath={rowPath} /> : null
@@ -117,6 +119,26 @@ const Item = memo(function Item({ component: c, rowPath }: { component: Componen
     )
   }
   return <Unknown type={c.type} />
+}
+
+const Item = memo(function Item({ component: c, rowPath }: { component: ComponentSchema; rowPath: string }) {
+  const { store } = useFormContext()
+  const get = () => store.isVisible(c, rowPath)
+  const visible = useSyncExternalStore(store.subscribe, get, get)
+  if (!visible) return null
+  const kind = getField(c.type)?.kind
+  const holdsValue = c.key && (kind === 'input' || kind === 'calculated' || kind === 'repeater')
+  const span = typeof c.width === 'number' ? Math.min(12, Math.max(1, Math.round(c.width))) : undefined
+  return (
+    // One grid cell per component. It carries the width, any custom classes, and the path used to focus a field.
+    <div
+      className={['fx-cell', c.className].filter(Boolean).join(' ')}
+      data-fx-path={holdsValue ? join(rowPath, c.key!) : undefined}
+      style={span ? ({ '--fx-span': span } as CSSProperties) : undefined}
+    >
+      <Body component={c} rowPath={rowPath} />
+    </div>
+  )
 })
 
 const Components = memo(function Components({ list, rowPath }: { list: ComponentSchema[] | undefined; rowPath: string }) {
@@ -138,13 +160,30 @@ export interface FormProps<S extends FormSchema> extends FormOptions<DataOf<S>> 
   /** Text for buttons and step labels. */
   labels?: Partial<Labels>
   className?: string
+  /** Control size. Defaults to the schema's `appearance.size`, then `md`. */
+  size?: Appearance['size']
+  /** Input style. Defaults to the schema's `appearance.variant`, then `outlined`. */
+  variant?: Appearance['variant']
+  /** Labels above the control, or beside it on wide forms. */
+  labelPosition?: Appearance['labelPosition']
+  /** `auto` follows the visitor's system setting. */
+  theme?: Appearance['theme']
   /** Rendered between the fields and the buttons. */
   children?: ReactNode
 }
 
 /** Renders a form schema: fields, pages, validation messages and navigation. */
 export function Form<S extends FormSchema>(props: FormProps<S>) {
-  const { schema, form, components, labels: labelOverrides, className, children, ...options } = props
+  const { schema, form, components, labels: labelOverrides, className, size, variant, labelPosition, theme, children, ...options } = props
+  const look = { ...schema.appearance, ...(size && { size }), ...(variant && { variant }), ...(labelPosition && { labelPosition }), ...(theme && { theme }) }
+  const classes = [
+    'fx-form',
+    look.size && look.size !== 'md' && `fx-size-${look.size}`,
+    look.variant && look.variant !== 'outlined' && `fx-variant-${look.variant}`,
+    look.labelPosition === 'left' && 'fx-labels-left',
+    look.theme && look.theme !== 'light' && `fx-theme-${look.theme}`,
+    className,
+  ]
   const own = useForm(schema, options)
   const store = form ?? own
   const snap = useFormState(store)
@@ -186,7 +225,7 @@ export function Form<S extends FormSchema>(props: FormProps<S>) {
 
   return (
     <FormProvider store={store} adapter={adapter} labels={labels} idPrefix={idPrefix}>
-      <form ref={root} className={['fx-form', className].filter(Boolean).join(' ')} noValidate onSubmit={onSubmit}>
+      <form ref={root} className={classes.filter(Boolean).join(' ')} noValidate onSubmit={onSubmit}>
         {(schema.title || schema.description) && (
           <header className="fx-header">
             {schema.title && <h2 className="fx-title">{schema.title}</h2>}

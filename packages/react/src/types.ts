@@ -27,6 +27,8 @@ export interface FieldProps<V = unknown> {
   error: string | undefined
   required: boolean
   disabled: boolean
+  /** Work is in progress for this field: a lookup is being fetched or a file is uploading. */
+  loading?: boolean
 }
 
 export interface PanelProps {

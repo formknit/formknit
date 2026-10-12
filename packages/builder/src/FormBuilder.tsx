@@ -227,6 +227,45 @@ export function FormBuilder(props: FormBuilderProps) {
       setIndicator(null)
       if (current) apply((draft) => performDrop(draft, current, listPath, index, create(draft)))
     },
+    startTouchDrag: (current) => {
+      // Browsers do not fire drag events for touch, so follow the finger ourselves.
+      setDragState(current)
+      let target: { listPath: Path; index: number } | null = null
+      const move = (e: TouchEvent) => {
+        e.preventDefault()
+        const touch = e.touches[0]
+        const list = touch ? (document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-list]') as HTMLElement | null) : null
+        const key = list?.getAttribute('data-list')
+        // Not over a list, or over a list inside the component being dragged.
+        if (!list || !key || (current.kind === 'move' && `${key}/`.startsWith(`${current.path}/`))) {
+          target = null
+          return setIndicator(null)
+        }
+        const cards = [...list.children].filter((el) => el.hasAttribute('data-card'))
+        let index = cards.length
+        for (let i = 0; i < cards.length; i++) {
+          const rect = cards[i].getBoundingClientRect()
+          if (touch.clientY < rect.top + rect.height / 2) {
+            index = i
+            break
+          }
+        }
+        target = { listPath: parsePath(key), index }
+        setIndicator({ list: key, index })
+      }
+      const end = () => {
+        document.removeEventListener('touchmove', move)
+        document.removeEventListener('touchend', end)
+        document.removeEventListener('touchcancel', end)
+        setDragState(null)
+        setIndicator(null)
+        const at = target
+        if (at) apply((draft) => performDrop(draft, current, at.listPath, at.index, create(draft)))
+      }
+      document.addEventListener('touchmove', move, { passive: false })
+      document.addEventListener('touchend', end)
+      document.addEventListener('touchcancel', end)
+    },
     add: (type) =>
       apply((draft) => {
         // Next to the selected field if there is one, otherwise at the end of the page.

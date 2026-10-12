@@ -11,7 +11,7 @@ builder.
 | Package | Status | What it does |
 |---|---|---|
 | `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
-| `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, swappable components, default skin |
+| `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, lookups, uploads, drafts, swappable components, themeable responsive skin |
 | `@formknit/adapter-mui` | Working | Renders forms with Material UI components and your MUI theme |
 | `@formknit/builder` | Working | Drag-and-drop form builder: palette, canvas, settings, rule and formula editors, pages, undo/redo, preview and JSON views |
 
@@ -52,7 +52,43 @@ For any other UI library, pass your own components for the field types you want 
 <Form schema={invoice} components={{ fields: { text: MyTextField, select: MySelect } }} />
 ```
 
-Theme the default skin with CSS variables such as `--fx-primary` and `--fx-radius`.
+## Styling
+
+Import `@formknit/react/styles.css` once. Then:
+
+| What | How |
+|---|---|
+| Size | `<Form size="sm" />` or `"lg"` (class `fx-size-sm`, `fx-size-lg`) |
+| Field style | `variant="filled"` or `"underline"` |
+| Label position | `labelPosition="left"` puts labels beside fields on wide forms |
+| Dark mode | `theme="dark"`, or `"auto"` to follow the system |
+| Field width | `text('city').width(4)` on a 12-column grid: 6 is half, 4 a third |
+| Colours, radius, spacing | Override CSS variables such as `--fx-primary`, `--fx-radius`, `--fx-gap` |
+| Helper classes | `.className('fx-hide-label')`, `fx-stack-choices`, `fx-hide-narrow`, `fx-show-narrow`, `fx-align-end` |
+
+The same options can be stored in the schema as `appearance: { size, variant, labelPosition, theme }`,
+which is what the visual builder edits.
+
+Layout responds to the form's own width, not the window's: below about 480px every field
+stacks full width, so a form in a narrow sidebar stacks even on a large screen.
+
+## More features
+
+```tsx
+<Form
+  schema={schema}
+  lookup={(query) => api.lookup(query)}          // values for lookup fields, e.g. from another form
+  onUpload={(file) => api.upload(file)}           // returns a URL or an object to store
+  draft={{ key: 'admission-draft' }}              // keeps unfinished answers across reloads
+  onSubmit={save}
+/>
+```
+
+- **Lookup fields** fetch a value from a data source you provide: one record (`first`, `last`) or a
+  total across many (`sum`, `count`, `avg`, `list`). Formulas can then use the result. On the
+  server, `validateAsync(schema, body, { lookup })` fetches them again so a client cannot forge them.
+- **File fields** accept `accept: '.pdf,image/*'` and `validate.maxSizeMb`.
+- **More field types:** web address, star rating, slider.
 
 Let your own users design forms by embedding the builder:
 

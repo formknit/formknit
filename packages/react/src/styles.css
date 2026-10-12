@@ -1,4 +1,25 @@
-/* Default skin. Override the --fx-* variables on .fx-form (or any ancestor) to theme it. */
+/*
+ * Formknit default skin.
+ *
+ * Theme it by overriding the --fx-* variables on .fx-form or any ancestor.
+ * Ready-made modifier classes (set by <Form> props or schema.appearance, or add them yourself):
+ *
+ *   Size        fx-size-sm            fx-size-lg
+ *   Style       fx-variant-filled     fx-variant-underline
+ *   Labels      fx-labels-left        (label beside the control on wide forms)
+ *   Theme       fx-theme-dark         fx-theme-auto  (follows the system setting)
+ *
+ * Helper classes for a component's `className`:
+ *
+ *   fx-hide-label      hide the label visually; screen readers still read it
+ *   fx-stack-choices   list radio / checkbox choices one per line
+ *   fx-hide-narrow     hide on narrow forms          fx-show-narrow   show only on narrow forms
+ *   fx-align-end       push the component to the end of its row
+ *
+ * Layout: every component sits in a 12-column grid. `width: 6` in the schema makes it half
+ * width. The grid responds to the form's own width, not the window's, so a form in a narrow
+ * sidebar stacks even on a large screen.
+ */
 .fx-form {
   --fx-primary: #4f46e5;
   --fx-on-primary: #ffffff;
@@ -8,11 +29,18 @@
   --fx-text: #151922;
   --fx-muted: #667085;
   --fx-danger: #d92d20;
+  --fx-star: #f5a524;
   --fx-radius: 8px;
   --fx-gap: 16px;
   --fx-font: inherit;
   --fx-font-size: 14px;
+  --fx-control-height: 38px;
+  --fx-pad-x: 12px;
+  --fx-pad-y: 8px;
+  --fx-check-size: 18px;
+  /* Forms narrower than this stack every field. Change it with the two container rules at the end. */
 
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--fx-gap);
@@ -22,19 +50,79 @@
   line-height: 1.45;
   text-align: start;
 }
+
+/* ---------- Sizes ---------- */
+.fx-size-sm {
+  --fx-font-size: 13px;
+  --fx-control-height: 32px;
+  --fx-pad-x: 10px;
+  --fx-pad-y: 5px;
+  --fx-gap: 12px;
+  --fx-check-size: 16px;
+  --fx-radius: 6px;
+}
+.fx-size-lg {
+  --fx-font-size: 16px;
+  --fx-control-height: 46px;
+  --fx-pad-x: 14px;
+  --fx-pad-y: 11px;
+  --fx-gap: 20px;
+  --fx-check-size: 20px;
+  --fx-radius: 10px;
+}
+
+/* ---------- Themes ---------- */
+.fx-theme-dark {
+  --fx-primary: #8b85ff;
+  --fx-on-primary: #11131a;
+  --fx-surface: #1b1f2a;
+  --fx-subtle: #252a37;
+  --fx-border: #3a4152;
+  --fx-text: #eef0f5;
+  --fx-muted: #9aa3b5;
+  --fx-danger: #ff8a80;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  .fx-theme-auto {
+    --fx-primary: #8b85ff;
+    --fx-on-primary: #11131a;
+    --fx-surface: #1b1f2a;
+    --fx-subtle: #252a37;
+    --fx-border: #3a4152;
+    --fx-text: #eef0f5;
+    --fx-muted: #9aa3b5;
+    --fx-danger: #ff8a80;
+    color-scheme: dark;
+  }
+}
+
 .fx-form *,
 .fx-form *::before,
 .fx-form *::after {
   box-sizing: border-box;
 }
-.fx-slot {
-  display: contents;
-}
+
+/* ---------- Layout ---------- */
 .fx-stack {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--fx-gap);
+  align-items: start;
   min-width: 0;
+}
+.fx-cell {
+  grid-column: span var(--fx-span, 12);
+  min-width: 0;
+}
+.fx-cell:empty {
+  display: none;
+}
+.fx-align-end {
+  justify-self: end;
+}
+.fx-show-narrow {
+  display: none;
 }
 .fx-header,
 .fx-page-header {
@@ -64,6 +152,7 @@
   border-top: 1px solid var(--fx-border);
 }
 
+/* ---------- Fields ---------- */
 .fx-field {
   display: flex;
   flex-direction: column;
@@ -92,11 +181,20 @@
 .fx-error:empty {
   display: none;
 }
+.fx-visually-hidden,
+.fx-hide-label > .fx-field > .fx-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .fx-input {
   width: 100%;
-  min-height: 38px;
-  padding: 8px 12px;
+  min-height: var(--fx-control-height);
+  padding: var(--fx-pad-y) var(--fx-pad-x);
   border: 1px solid var(--fx-border);
   border-radius: var(--fx-radius);
   background: var(--fx-surface);
@@ -108,6 +206,8 @@
 }
 .fx-input:focus-visible,
 .fx-choice input:focus-visible,
+.fx-star input:focus-visible + span,
+.fx-slider input:focus-visible,
 .fx-button:focus-visible,
 .fx-icon-button:focus-visible {
   outline: 2px solid var(--fx-primary);
@@ -128,14 +228,57 @@
   background: var(--fx-subtle);
   font-variant-numeric: tabular-nums;
 }
+.fx-loading {
+  opacity: 0.55;
+}
 .fx-file {
-  padding: 6px;
+  padding: calc(var(--fx-pad-y) - 2px);
+}
+.fx-file-chosen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fx-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* Variants */
+.fx-variant-filled .fx-input {
+  border-color: transparent;
+  background: var(--fx-subtle);
+}
+.fx-variant-filled .fx-input:focus-visible {
+  border-color: var(--fx-primary);
+  background: var(--fx-surface);
+}
+.fx-variant-filled .fx-invalid > .fx-input {
+  border-color: var(--fx-danger);
+}
+.fx-variant-underline .fx-input {
+  padding-inline: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+.fx-variant-underline .fx-input:focus-visible {
+  outline: none;
+  border-color: var(--fx-primary);
+  box-shadow: 0 1px 0 var(--fx-primary);
+}
+
+/* ---------- Choices, rating, slider ---------- */
 .fx-choices {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 24px;
+}
+.fx-stack-choices .fx-choices {
+  flex-direction: column;
 }
 .fx-choice {
   display: inline-flex;
@@ -144,18 +287,50 @@
   cursor: pointer;
 }
 .fx-choice input {
-  width: 18px;
-  height: 18px;
+  flex: none;
+  width: var(--fx-check-size);
+  height: var(--fx-check-size);
   margin: 0;
   accent-color: var(--fx-primary);
 }
-
-.fx-panel {
+.fx-rating {
+  display: inline-flex;
+  gap: 2px;
+}
+.fx-star {
+  color: var(--fx-border);
+  font-size: calc(var(--fx-check-size) * 1.5);
+  line-height: 1;
+  cursor: pointer;
+}
+.fx-star-on {
+  color: var(--fx-star);
+}
+.fx-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--fx-control-height);
+}
+.fx-slider input {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  padding: 16px;
+  accent-color: var(--fx-primary);
+}
+.fx-slider-value {
+  min-width: 2.5em;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Panels, columns, repeaters ---------- */
+.fx-panel {
+  min-width: 0;
+  margin: 0;
+  padding: var(--fx-gap);
   border: 1px solid var(--fx-border);
   border-radius: calc(var(--fx-radius) + 2px);
-  min-width: 0;
 }
 .fx-panel-title {
   padding: 0 6px;
@@ -169,7 +344,6 @@
 .fx-column {
   flex: 1 1 200px;
 }
-
 .fx-repeater {
   gap: 10px;
 }
@@ -197,15 +371,15 @@
   padding: 0;
   border: 0;
 }
-.fx-repeater-compact .fx-row-fields {
-  flex-direction: row;
+.fx-compact-row {
+  display: flex;
   gap: 8px;
 }
-.fx-repeater-compact .fx-row-fields > .fx-slot > .fx-field {
-  flex: 1 1 0;
+.fx-compact-row > .fx-cell {
+  flex: var(--fx-span, 12) 1 0;
 }
 /* Still read by screen readers, so every control keeps its name. */
-.fx-repeater-compact .fx-row:not(.fx-row-first) .fx-row-fields > .fx-slot > .fx-field > .fx-label {
+.fx-row:not(.fx-row-first) > .fx-compact-row > .fx-cell > .fx-field > .fx-label {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -216,15 +390,8 @@
 .fx-repeater-compact .fx-row-actions {
   padding-bottom: 4px;
 }
-@media (max-width: 560px) {
-  .fx-repeater-compact .fx-row-fields {
-    flex-wrap: wrap;
-  }
-  .fx-repeater-compact .fx-row-fields > .fx-slot > .fx-field {
-    flex-basis: 40%;
-  }
-}
 .fx-icon-button {
+  flex: none;
   width: 30px;
   height: 30px;
   border: 1px solid var(--fx-border);
@@ -235,8 +402,10 @@
   cursor: pointer;
 }
 
+/* ---------- Buttons and steps ---------- */
 .fx-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -246,7 +415,8 @@
   font-size: 0.86em;
 }
 .fx-button {
-  padding: 9px 16px;
+  min-height: var(--fx-control-height);
+  padding: 0 calc(var(--fx-pad-x) + 4px);
   border: 1px solid var(--fx-border);
   border-radius: var(--fx-radius);
   background: var(--fx-surface);
@@ -264,7 +434,6 @@
   opacity: 0.6;
   cursor: default;
 }
-
 .fx-steps {
   display: flex;
   gap: 10px;
@@ -277,9 +446,15 @@
   flex: 1;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
   color: var(--fx-muted);
   font-size: 0.86em;
   font-weight: 500;
+}
+.fx-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .fx-step-bar {
   height: 4px;
@@ -302,4 +477,55 @@
   border: 1px dashed var(--fx-danger);
   border-radius: var(--fx-radius);
   color: var(--fx-danger);
+}
+
+/* ---------- Responsive: by the form's own width ---------- */
+@container (min-width: 560px) {
+  /* Label beside the control. Groups (radio, checkbox lists) keep their label on top. */
+  .fx-labels-left div.fx-field {
+    display: grid;
+    grid-template-columns: minmax(120px, 30%) minmax(0, 1fr);
+    column-gap: var(--fx-gap);
+  }
+  .fx-labels-left div.fx-field > .fx-label {
+    grid-row: span 3;
+    padding-top: calc(var(--fx-pad-y) + 1px);
+  }
+  .fx-labels-left div.fx-field > :not(.fx-label) {
+    grid-column: 2;
+  }
+}
+@container (max-width: 480px) {
+  .fx-cell {
+    grid-column: 1 / -1;
+  }
+  .fx-compact-row {
+    flex-wrap: wrap;
+  }
+  .fx-compact-row > .fx-cell {
+    flex-basis: 40%;
+  }
+  .fx-hide-narrow {
+    display: none;
+  }
+  .fx-show-narrow {
+    display: block;
+  }
+  .fx-actions > .fx-button {
+    flex: 1;
+  }
+  .fx-step:not(.fx-step-current) .fx-step-label {
+    display: none;
+  }
+}
+/* Browsers without container queries fall back to the window's width. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 520px) {
+    .fx-cell {
+      grid-column: 1 / -1;
+    }
+    .fx-compact-row {
+      flex-wrap: wrap;
+    }
+  }
 }

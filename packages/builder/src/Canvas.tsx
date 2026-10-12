@@ -44,7 +44,7 @@ export function DropList({ listPath, empty }: { listPath: Path; empty: string })
     b.indicator?.list === key && b.indicator.index === index && <div className="fxb-indicator" key={`line-${index}`} />
 
   return (
-    <div ref={ref} className={cx('fxb-list', list.length === 0 && 'fxb-list-empty')} onDragOver={onDragOver} onDrop={onDrop}>
+    <div ref={ref} data-list={key} className={cx('fxb-list', list.length === 0 && 'fxb-list-empty')} onDragOver={onDragOver} onDrop={onDrop}>
       {list.map((c, i) => [line(i), <Card key={`${i}-${c.type}-${c.key ?? ''}`} component={c} path={[...listPath, i]} />])}
       {line(list.length)}
       {list.length === 0 && <div className="fxb-empty">{empty}</div>}
@@ -205,7 +205,7 @@ function Card({ component: c, path }: { component: ComponentSchema; path: Path }
       onDragEnd={() => b.setDrag(null)}
     >
       <div className="fxb-card-bar">
-        <span className="fxb-grip">
+        <span className="fxb-grip" onTouchStart={() => b.startTouchDrag({ kind: 'move', path: key })}>
           <Icon markup={GRIP} size={14} />
         </span>
         <span className="fxb-type">
@@ -214,6 +214,7 @@ function Card({ component: c, path }: { component: ComponentSchema; path: Path }
         </span>
         {c.key && isData(c) && <code className="fxb-key">{c.key}</code>}
         {c.visibleWhen && <span className="fxb-badge">Conditional</span>}
+        {typeof c.width === 'number' && c.width < 12 && <span className="fxb-key">{Math.round((c.width / 12) * 100)}% wide</span>}
         <span className="fxb-spacer" />
         {selected && (
           <span className="fxb-actions">

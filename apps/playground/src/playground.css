@@ -105,3 +105,30 @@ body {
   color: #667085;
   font-size: 12px;
 }
+
+.pg-look {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  max-width: 640px;
+  margin: 0 auto 12px;
+  color: #667085;
+  font-size: 12px;
+}
+.pg-look label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pg-look select {
+  padding: 4px 6px;
+  border: 1px solid #e2e5eb;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+}
+.pg-card-dark {
+  border-color: #3a4152;
+  background: #1b1f2a;
+}

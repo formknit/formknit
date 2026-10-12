@@ -45,6 +45,35 @@ defineField({
   check: (v, _c, label, m) => (typeof v === 'number' && Number.isFinite(v) ? null : m.number(label)),
 })
 
+textual('url', 'Web address', {
+  check: (v, _c, label, m) => (/^https?:\/\/[^\s/$.?#].\S*$/i.test(String(v)) ? null : m.url(label)),
+})
+
+const numeric = (type: string, label: string) =>
+  defineField({
+    type,
+    kind: 'input',
+    label,
+    group: 'Basic',
+    emptyValue: null,
+    coerce: (v) => {
+      if (v === null || v === undefined || v === '') return null
+      if (typeof v === 'string' && NUMERIC.test(v.trim())) return Number(v)
+      return v
+    },
+    check: (v, c, lbl, m) => {
+      if (typeof v !== 'number' || !Number.isFinite(v)) return m.number(lbl)
+      // A rating cannot exceed its number of stars, whatever the validation rules say.
+      if (type === 'rating' && v > (typeof c.max === 'number' ? c.max : 5)) return m.max(lbl, typeof c.max === 'number' ? c.max : 5)
+      return null
+    },
+  })
+
+/** A whole number of stars, 1 up to the component's `max` (5 unless set). */
+numeric('rating', 'Rating')
+/** A number picked on a track between `validate.min` and `validate.max`. */
+numeric('slider', 'Slider')
+
 defineField({ type: 'hidden', kind: 'input', label: 'Hidden', group: 'Basic', emptyValue: null })
 
 const choice = (type: string, label: string) =>
@@ -89,7 +118,37 @@ const boolean = (type: string, label: string) =>
 boolean('checkbox', 'Checkbox')
 boolean('toggle', 'Toggle')
 
-defineField({ type: 'file', kind: 'input', label: 'File upload', group: 'Data', emptyValue: null })
+const accepts = (accept: string, file: { name?: unknown; type?: unknown }) =>
+  accept
+    .split(',')
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean)
+    .some((a) => {
+      const name = String(file.name ?? '').toLowerCase()
+      const type = String(file.type ?? '').toLowerCase()
+      if (a.startsWith('.')) return name.endsWith(a)
+      if (a.endsWith('/*')) return type.startsWith(a.slice(0, -1))
+      return type === a
+    })
+
+defineField({
+  type: 'file',
+  kind: 'input',
+  label: 'File upload',
+  group: 'Data',
+  emptyValue: null,
+  // The size and type are whatever the client reported; check the stored file itself if it matters.
+  check: (v, c, label, m) => {
+    if (typeof v !== 'object' || v === null) return null
+    const file = v as { name?: unknown; size?: unknown; type?: unknown }
+    const max = c.validate?.maxSizeMb
+    if (max !== undefined && typeof file.size === 'number' && file.size > max * 1024 * 1024) return m.fileSize(label, max)
+    if (c.accept && !accepts(c.accept, file)) return m.fileType(label, c.accept)
+    return null
+  },
+})
+/** A read-only value fetched from a data source, such as another form's submissions. */
+defineField({ type: 'lookup', kind: 'input', label: 'Lookup', group: 'Data', emptyValue: null })
 defineField({ type: 'calculated', kind: 'calculated', label: 'Calculated', group: 'Data', emptyValue: null })
 
 defineField({ type: 'repeater', kind: 'repeater', label: 'Repeating group', group: 'Layout', emptyValue: [] })

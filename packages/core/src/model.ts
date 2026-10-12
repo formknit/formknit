@@ -29,6 +29,8 @@ export interface Node {
   required?: Compiled
   disabled?: Compiled
   calc?: Compiled
+  /** Lookup fields: the value to match on. */
+  match?: Compiled
   rules: { compiled: Compiled; message: string }[]
 }
 
@@ -134,6 +136,10 @@ export function getModel(schema: FormSchema): Model {
         node.calc = expr(c.expression, tpl, 'expression')
         if (!c.expression) error(tpl, 'A calculated field needs an expression')
       }
+      if (c.type === 'lookup') {
+        node.match = expr(c.matchValue, tpl, 'matchValue')
+        if (!c.source || !c.matchField || !c.matchValue) warn(tpl, 'A lookup field needs a source, a field to match and a value to match')
+      }
       for (const rule of c.validate?.rules ?? []) {
         const compiled = expr(rule.expression, tpl, 'Validation rule')
         if (compiled) node.rules.push({ compiled, message: rule.message })
@@ -198,6 +204,7 @@ export function getModel(schema: FormSchema): Model {
     for (const rule of node.rules) depsOf(rule.compiled.refs, node.scope, node.tpl)
     if (node.required) depsOf(node.required.refs, node.scope, node.tpl)
     if (node.disabled) depsOf(node.disabled.refs, node.scope, node.tpl)
+    if (node.match) depsOf(node.match.refs, node.scope, node.tpl)
   }
 
   const order: OrderItem[] = []

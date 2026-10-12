@@ -20,7 +20,29 @@ export interface Validation {
   patternMessage?: string
   minItems?: number
   maxItems?: number
+  /** Largest file allowed, in megabytes. */
+  maxSizeMb?: number
   rules?: ValidationRule[]
+}
+
+/** How to fetch a value from somewhere else, such as another form's submissions. */
+export interface LookupQuery {
+  /** Name of the data source, e.g. `students`. */
+  source: string
+  /** Records must match these values, e.g. `{ rollNo: '2027-0142' }`. */
+  where: Record<string, unknown>
+  /** Field to read from the matching records. */
+  select: string | undefined
+  /** What to do with the matches. `first` and `last` return one value; the others combine them. */
+  aggregate: 'first' | 'last' | 'sum' | 'count' | 'avg' | 'list'
+}
+
+/** Look and feel that travels with the schema. Props on `<Form>` override it. */
+export interface Appearance {
+  size?: 'sm' | 'md' | 'lg'
+  variant?: 'outlined' | 'filled' | 'underline'
+  labelPosition?: 'top' | 'left'
+  theme?: 'light' | 'dark' | 'auto'
 }
 
 export interface ColumnSchema {
@@ -51,6 +73,22 @@ export interface ComponentSchema {
   components?: ComponentSchema[]
   /** Children of a `columns` layout. */
   columns?: ColumnSchema[]
+  /** Width in twelfths of the row: 12 is full width, 6 is half. Collapses to full width on narrow forms. */
+  width?: number
+  /** Extra CSS classes for the component's wrapper. */
+  className?: string
+  /** Lookup fields: the data source to read. */
+  source?: string
+  /** Lookup fields: the field in the source that must match. */
+  matchField?: string
+  /** Lookup fields: expression giving the value to match, usually another field's key. */
+  matchValue?: string
+  /** Lookup fields: the field to return. */
+  returnField?: string
+  /** Lookup fields: how to combine several matches. Defaults to `first`. */
+  aggregate?: LookupQuery['aggregate']
+  /** File fields: accepted types, e.g. `.pdf,image/*`. */
+  accept?: string
   /** Repeaters: show each row's fields side by side, like a table row. */
   compact?: boolean
   /** Text for `content` components. */
@@ -73,6 +111,7 @@ export interface FormSchema {
   title?: string
   description?: string
   submitLabel?: string
+  appearance?: Appearance
   /** A single-page form has one page. */
   pages: PageSchema[]
 }

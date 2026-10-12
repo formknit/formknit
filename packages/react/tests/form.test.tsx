@@ -1,5 +1,7 @@
-import { calculated, checkbox, form, number, page, repeater, select, text, type FormSchema } from '@formknit/core'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import {
+  calculated, checkbox, form, lookup, number, page, rating, repeater, select, slider, text, type FormSchema, type LookupQuery,
+} from '@formknit/core'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Form, useField, useForm, useFormState, type FieldProps } from '../src'
@@ -241,5 +243,115 @@ describe('adapters and headless use', () => {
     await user.type(within(document.body).getByLabelText('A'), 'xyz')
     expect(renders.a - before.a).toBe(3)
     expect(renders.b - before.b).toBe(0)
+  })
+})
+
+describe('appearance and layout', () => {
+  it('applies size, variant, label and theme classes from props or the schema', () => {
+    const schema = { ...form('A', [text('a').label('A').width(6).className('fx-hide-label'), text('b').label('B')]), appearance: { size: 'lg', variant: 'filled' } as const }
+    const { container, rerender } = render(<Form schema={schema} />)
+    const root = container.querySelector('form')!
+    expect(root.className).toBe('fx-form fx-size-lg fx-variant-filled')
+    const cells = container.querySelectorAll<HTMLElement>('.fx-cell')
+    expect(cells[0].className).toBe('fx-cell fx-hide-label')
+    expect(cells[0].style.getPropertyValue('--fx-span')).toBe('6')
+    expect(cells[0].getAttribute('data-fx-path')).toBe('a')
+    expect(cells[1].style.getPropertyValue('--fx-span')).toBe('')
+    rerender(<Form schema={schema} size="sm" variant="outlined" labelPosition="left" theme="dark" className="mine" />)
+    expect(root.className).toBe('fx-form fx-size-sm fx-labels-left fx-theme-dark mine')
+  })
+})
+
+describe('lookups', () => {
+  const fees = form('Fees', [
+    text('rollNumber').label('Roll number'),
+    lookup('studentName', { source: 'students', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'fullName' }).label('Student'),
+  ])
+
+  it('fetches when the matched value changes and ignores stale answers', async () => {
+    const user = userEvent.setup()
+    const answers: Record<string, (v: unknown) => void> = {}
+    const lookupFn = vi.fn((q: LookupQuery) => new Promise<unknown>((resolve) => (answers[String(q.where.rollNo)] = resolve)))
+    render(<Form schema={fees} lookup={lookupFn} lookupDelay={0} />)
+    expect(lookupFn).not.toHaveBeenCalled()
+
+    await user.type(screen.getByLabelText('Roll number'), '1')
+    await waitFor(() => expect(lookupFn).toHaveBeenCalledTimes(1))
+    expect(lookupFn).toHaveBeenLastCalledWith({ source: 'students', where: { rollNo: '1' }, select: 'fullName', aggregate: 'first' })
+    expect(screen.getByLabelText('Student').getAttribute('aria-busy')).toBe('true')
+
+    await user.type(screen.getByLabelText('Roll number'), '2')
+    await waitFor(() => expect(lookupFn).toHaveBeenCalledTimes(2))
+    // The first answer arrives late and must not be shown.
+    await act(async () => answers['1']('Wrong student'))
+    expect(screen.getByLabelText('Student').textContent?.trim()).toBe('')
+    await act(async () => answers['12']('Sita Sharma'))
+    expect(screen.getByLabelText('Student').textContent).toBe('Sita Sharma')
+    expect(screen.getByLabelText('Student').getAttribute('aria-busy')).toBeNull()
+
+    await user.clear(screen.getByLabelText('Roll number'))
+    await waitFor(() => expect(screen.getByLabelText('Student').textContent?.trim()).toBe(''))
+    expect(lookupFn).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('drafts and uploads', () => {
+  const memory = () => {
+    const data = new Map<string, string>()
+    return { data, getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k) }
+  }
+  const schema = form('Draft', [text('name').label('Name').required(), number('age').label('Age')])
+
+  it('saves a draft, restores it and clears it after submit', async () => {
+    const user = userEvent.setup()
+    const storage = memory()
+    const first = render(<Form schema={schema} draft={{ key: 'd1', storage, delay: 0 }} />)
+    await user.type(screen.getByLabelText(/Name/), 'Sita')
+    await waitFor(() => expect(JSON.parse(storage.data.get('d1')!)).toEqual({ name: 'Sita', age: null }))
+    first.unmount()
+
+    const onSubmit = vi.fn()
+    render(<Form schema={schema} defaultValues={{ name: 'Default', age: 30 }} draft={{ key: 'd1', storage, delay: 0 }} onSubmit={onSubmit} />)
+    expect((screen.getByLabelText(/Name/) as HTMLInputElement).value).toBe('Sita')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ name: 'Sita', age: null }))
+    expect(storage.data.has('d1')).toBe(false)
+  })
+
+  it('ignores a corrupt draft', () => {
+    const storage = memory()
+    storage.data.set('d2', '{not json')
+    render(<Form schema={schema} defaultValues={{ name: 'Default' }} draft={{ key: 'd2', storage }} />)
+    expect((screen.getByLabelText(/Name/) as HTMLInputElement).value).toBe('Default')
+  })
+
+  it('uploads a chosen file, keeps its details and lets it be removed', async () => {
+    const user = userEvent.setup()
+    const upload = form('U', [{ schema: { type: 'file', key: 'cv', label: 'CV', validate: { maxSizeMb: 1 } } } as never])
+    const onUpload = vi.fn(async () => 'https://files.example/cv.pdf')
+    const onSubmit = vi.fn()
+    render(<Form schema={upload} onUpload={onUpload} onSubmit={onSubmit} />)
+    const file = new File(['hello'], 'cv.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByLabelText('CV'), file)
+    await waitFor(() => expect(screen.getByText('cv.pdf')).toBeTruthy())
+    expect(onUpload).toHaveBeenCalledWith(file)
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(onSubmit).toHaveBeenCalledWith({ cv: { name: 'cv.pdf', size: 5, type: 'application/pdf', url: 'https://files.example/cv.pdf' } })
+    await user.click(screen.getByRole('button', { name: 'Remove cv.pdf' }))
+    expect(screen.getByLabelText('CV').getAttribute('type')).toBe('file')
+  })
+})
+
+describe('rating and slider', () => {
+  it('sets and clears a rating, and moves a slider', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<Form schema={form('R', [rating('stars').label('Stars'), slider('volume').label('Volume').min(0).max(10)])} onChange={onChange} />)
+    await user.click(screen.getByRole('radio', { name: '4 of 5' }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ stars: 4 }), expect.anything())
+    await user.click(screen.getByRole('radio', { name: '4 of 5' }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ stars: null }), expect.anything())
+    fireEvent.change(screen.getByLabelText('Volume'), { target: { value: '7' } })
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ volume: 7 }), expect.anything())
   })
 })

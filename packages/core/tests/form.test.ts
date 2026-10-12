@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { checkSchema, computeState, getInitialValues, SchemaError, validate, type FormSchema } from '../src'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  calculated, checkSchema, computeState, form, getInitialValues, lookup, number, rating, SchemaError, slider, text, url, validate,
+  validateAsync, type FormSchema, type LookupQuery,
+} from '../src'
 
 const page = (components: FormSchema['pages'][0]['components'], extra = {}): FormSchema => ({
   version: 1,
@@ -374,5 +377,73 @@ describe('initial values', () => {
     ])
     expect(getInitialValues(schema)).toEqual({ name: 'Guest', qty: null, agree: false, days: [], inside: '', items: [] })
     expect(getInitialValues(schema, { name: 'Sita', items: [{ n: 2 }] })).toMatchObject({ name: 'Sita', items: [{ label: 'New', n: 2 }] })
+  })
+})
+
+describe('lookups, files and extra fields', () => {
+  const students: Record<string, { fullName: string; paid: number[] }> = {
+    '2027-0142': { fullName: 'Sita Sharma', paid: [9000, 3000] },
+  }
+  const lookupFn = vi.fn(async (q: LookupQuery) => {
+    const student = students[String(q.where.rollNo)]
+    if (!student) return null
+    return q.aggregate === 'sum' ? student.paid.reduce((a, b) => a + b, 0) : student.fullName
+  })
+  const fees = form('Fees', [
+    text('rollNumber').required(),
+    lookup('studentName', { source: 'students', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'fullName' }).required(),
+    lookup('paid', { source: 'payments', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'amount', aggregate: 'sum' }),
+    number('due'),
+    calculated('balance', 'due - paid'),
+  ])
+
+  it('describes what each lookup needs', () => {
+    const state = computeState(fees, { rollNumber: '2027-0142' })
+    expect(state.fields.studentName.lookup).toEqual({ source: 'students', where: { rollNo: '2027-0142' }, select: 'fullName', aggregate: 'first' })
+    expect(state.fields.studentName.disabled).toBe(true)
+    expect(computeState(fees, {}).fields.studentName.lookup).toBeNull()
+    expect(state.fields.rollNumber.lookup).toBeUndefined()
+  })
+
+  it('fetches lookups on the server and ignores what the client sent', async () => {
+    const result = await validateAsync(fees, { rollNumber: '2027-0142', studentName: 'Forged', paid: 999999, due: 20000 }, { lookup: lookupFn })
+    expect(result.valid).toBe(true)
+    expect(result.data).toEqual({ rollNumber: '2027-0142', studentName: 'Sita Sharma', paid: 12000, due: 20000, balance: 8000 })
+    const missing = await validateAsync(fees, { rollNumber: 'nobody', studentName: 'Forged' }, { lookup: lookupFn })
+    expect(missing.errors).toEqual({ studentName: ['studentName is required'] })
+    expect(missing.data.studentName).toBeNull()
+  })
+
+  it('warns about an incomplete lookup', () => {
+    expect(checkSchema(page([{ type: 'lookup', key: 'x' }])).map((i) => i.message)).toEqual([
+      'A lookup field needs a source, a field to match and a value to match',
+    ])
+  })
+
+  it('checks file size and type', () => {
+    const schema = page([{ type: 'file', key: 'cv', label: 'CV', accept: '.pdf, image/*', validate: { maxSizeMb: 2, required: true } }])
+    const check = (file: unknown) => validate(schema, { cv: file }).errors.cv
+    expect(check({ name: 'cv.pdf', size: 1000, type: 'application/pdf' })).toBeUndefined()
+    expect(check({ name: 'photo.PNG', size: 1000, type: 'image/png' })).toBeUndefined()
+    expect(check({ name: 'cv.pdf', size: 3 * 1024 * 1024, type: 'application/pdf' })).toEqual(['CV must be 2 MB or smaller'])
+    expect(check({ name: 'cv.docx', size: 10, type: 'application/msword' })).toEqual(['CV must be one of: .pdf, image/*'])
+    expect(check(null)).toEqual(['CV is required'])
+  })
+
+  it('supports web addresses, ratings and sliders', () => {
+    const schema = form('F', [url('site').label('Site'), rating('stars').label('Stars').max(5), slider('volume').label('Volume').min(0).max(10)])
+    expect(schema.pages[0].components[1]).toMatchObject({ type: 'rating', max: 5 })
+    expect(validate(schema, { site: 'https://example.com/a?b=1', stars: '4', volume: 7 }).data).toEqual({ site: 'https://example.com/a?b=1', stars: 4, volume: 7 })
+    expect(validate(schema, { site: 'example.com', stars: 9, volume: 11 }).errors).toEqual({
+      site: ['Site must be a web address starting with http:// or https://'],
+      stars: ['Stars must be at most 5'],
+      volume: ['Volume must be at most 10'],
+    })
+  })
+
+  it('carries width, class and appearance in the schema', () => {
+    const schema = form('F', [text('a').width(6).className('fx-hide-label')])
+    expect(schema.pages[0].components[0]).toEqual({ type: 'text', key: 'a', width: 6, className: 'fx-hide-label' })
+    expect(checkSchema({ ...schema, appearance: { size: 'lg', variant: 'filled' } })).toEqual([])
   })
 })

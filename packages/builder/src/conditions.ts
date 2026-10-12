@@ -22,8 +22,11 @@ export interface Rule {
 export interface RuleSet {
   /** `all`: every rule must hold. `any`: one is enough. */
   mode: 'all' | 'any'
-  rules: Rule[]
+  /** Rules, and groups of rules that combine the other way. */
+  rules: (Rule | RuleSet)[]
 }
+
+export const isGroup = (node: Rule | RuleSet): node is RuleSet => 'rules' in node
 
 export const OPERATORS: { op: Operator; label: string; needsValue: boolean }[] = [
   { op: 'eq', label: 'is', needsValue: true },
@@ -45,27 +48,36 @@ const NUMERIC = /^-?\d+(\.\d+)?$/
 
 const quote = (text: string) => `"${text.replace(/[\\"]/g, '\\$&')}"`
 
+function ruleExpression(r: Rule, isNumeric: (field: string) => boolean): string {
+  const literal = isNumeric(r.field) && NUMERIC.test(r.value.trim()) ? r.value.trim() : quote(r.value)
+  switch (r.op) {
+    case 'contains':
+      return `CONTAINS(${r.field}, ${quote(r.value)})`
+    case 'empty':
+      return `ISEMPTY(${r.field})`
+    case 'notEmpty':
+      return `NOT ISEMPTY(${r.field})`
+    case 'checked':
+      return `${r.field} == true`
+    case 'unchecked':
+      return `${r.field} != true`
+    default:
+      return `${r.field} ${SYMBOL[r.op]} ${literal}`
+  }
+}
+
 /** Turns rules into an expression. `isNumeric` says which fields hold numbers, so their values are not quoted. */
 export function toExpression(set: RuleSet, isNumeric: (field: string) => boolean = () => false): string {
-  const parts = set.rules
-    .filter((r) => r.field)
-    .map((r) => {
-      const literal = isNumeric(r.field) && NUMERIC.test(r.value.trim()) ? r.value.trim() : quote(r.value)
-      switch (r.op) {
-        case 'contains':
-          return `CONTAINS(${r.field}, ${quote(r.value)})`
-        case 'empty':
-          return `ISEMPTY(${r.field})`
-        case 'notEmpty':
-          return `NOT ISEMPTY(${r.field})`
-        case 'checked':
-          return `${r.field} == true`
-        case 'unchecked':
-          return `${r.field} != true`
-        default:
-          return `${r.field} ${SYMBOL[r.op]} ${literal}`
-      }
-    })
+  const parts: string[] = []
+  for (const node of set.rules) {
+    if (!isGroup(node)) {
+      if (node.field) parts.push(ruleExpression(node, isNumeric))
+      continue
+    }
+    const inner = toExpression(node, isNumeric)
+    const complete = node.rules.filter((r) => isGroup(r) || r.field).length
+    if (inner) parts.push(complete > 1 ? `(${inner})` : inner)
+  }
   return parts.join(set.mode === 'all' ? ' AND ' : ' OR ')
 }
 
@@ -92,19 +104,10 @@ function leaf(ast: Ast): Rule | null {
   return null
 }
 
-/**
- * Reads an expression back as rules. Returns null when it is something the rule editor
- * cannot show, such as a mix of AND and OR or a formula; the raw expression is edited then.
- */
-export function fromExpression(source: string | undefined): RuleSet | null {
-  if (!source || !source.trim()) return { mode: 'all', rules: [] }
-  let ast: Ast
-  try {
-    ast = compile(source).ast
-  } catch {
-    return null
-  }
-  const joiner = ast.t === 'bin' && (ast.op === 'AND' || ast.op === 'OR') ? ast.op : null
+const joinerOf = (ast: Ast) => (ast.t === 'bin' && (ast.op === 'AND' || ast.op === 'OR') ? ast.op : null)
+
+function readSet(ast: Ast, depth: number): RuleSet | null {
+  const joiner = joinerOf(ast)
   const leaves: Ast[] = []
   const flatten = (node: Ast) => {
     if (joiner && node.t === 'bin' && node.op === joiner) {
@@ -113,7 +116,25 @@ export function fromExpression(source: string | undefined): RuleSet | null {
     } else leaves.push(node)
   }
   flatten(ast)
-  const rules = leaves.map(leaf)
-  if (rules.some((r) => r === null)) return null
-  return { mode: joiner === 'OR' ? 'any' : 'all', rules: rules as Rule[] }
+  const rules: (Rule | RuleSet)[] = []
+  for (const node of leaves) {
+    // One level of grouping is as deep as the editor goes.
+    const read = leaf(node) ?? (depth === 0 && joinerOf(node) ? readSet(node, 1) : null)
+    if (!read) return null
+    rules.push(read)
+  }
+  return { mode: joiner === 'OR' ? 'any' : 'all', rules }
+}
+
+/**
+ * Reads an expression back as rules. Returns null when it is something the rule editor
+ * cannot show, such as a formula or groups inside groups; the raw expression is edited then.
+ */
+export function fromExpression(source: string | undefined): RuleSet | null {
+  if (!source || !source.trim()) return { mode: 'all', rules: [] }
+  try {
+    return readSet(compile(source).ast, 0)
+  } catch {
+    return null
+  }
 }

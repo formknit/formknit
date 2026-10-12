@@ -27,6 +27,8 @@ export interface Builder {
   setIndicator: (indicator: { list: string; index: number } | null) => void
   /** Completes the current drag at a position in a list. */
   drop: (listPath: Path, index: number) => void
+  /** Starts dragging by touch; the drop happens where the finger lifts. */
+  startTouchDrag: (drag: Drag) => void
   /** Adds a field from the palette without dragging. */
   add: (type: string) => void
 }

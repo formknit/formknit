@@ -7,6 +7,7 @@ import {
   type FormSchema,
   type FormState,
   type FormValues,
+  type LookupResolver,
 } from '@formknit/core'
 
 export interface FormOptions<D = FormValues> {
@@ -18,6 +19,15 @@ export interface FormOptions<D = FormValues> {
   onChange?: (values: FormValues, state: FormState) => void
   /** Stores a chosen file and returns what to keep in the data, usually a URL or id. */
   onUpload?: (file: File) => unknown | Promise<unknown>
+  /** Fetches values for lookup fields, e.g. from your API. */
+  lookup?: LookupResolver
+  /** How long to wait after typing stops before fetching a lookup, in milliseconds. Defaults to 250. */
+  lookupDelay?: number
+  /**
+   * Keeps unfinished answers in the browser so a reload does not lose them.
+   * The draft is restored on load and removed after a successful submit.
+   */
+  draft?: { key: string; storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>; delay?: number }
   /** Replacement messages, extra expression functions and a fixed clock. */
   compute?: ComputeOptions
 }
@@ -33,6 +43,8 @@ export interface FieldSnapshot {
   required: boolean
   disabled: boolean
   touched: boolean
+  /** A lookup for this field is in progress. */
+  loading: boolean
 }
 
 export interface PageInfo {
@@ -112,15 +124,103 @@ export class FormStore<D = FormValues> {
   private version = 0
   private fieldCache = new Map<string, { version: number; snap: FieldSnapshot }>()
   private snapshot!: FormSnapshot
+  private lookupKeys = new Map<string, string>()
+  private lookupTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private loading = new Set<string>()
+  private draftTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
     public schema: FormSchema,
     options: FormOptions<D> = {},
   ) {
     this.options = options
-    this.values = getInitialValues(schema, options.defaultValues)
+    this.values = getInitialValues(schema, { ...options.defaultValues, ...this.readDraft() })
     this.state = computeState(schema, this.values, options.compute)
     this.refresh()
+    this.syncLookups()
+  }
+
+  private storage() {
+    try {
+      return this.options.draft?.storage ?? (typeof localStorage === 'undefined' ? undefined : localStorage)
+    } catch {
+      // Storage can be blocked, e.g. in private windows. Drafts are then simply not kept.
+      return undefined
+    }
+  }
+
+  private readDraft(): FormValues {
+    const draft = this.options.draft
+    if (!draft) return {}
+    try {
+      const saved = JSON.parse(this.storage()?.getItem(draft.key) ?? 'null')
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+    } catch {
+      return {}
+    }
+  }
+
+  private saveDraft() {
+    const draft = this.options.draft
+    if (!draft) return
+    clearTimeout(this.draftTimer)
+    this.draftTimer = setTimeout(() => {
+      try {
+        this.storage()?.setItem(draft.key, JSON.stringify(this.values))
+      } catch {
+        // Storage is full or blocked; the form still works.
+      }
+    }, draft.delay ?? 400)
+  }
+
+  /** Removes the saved draft. Called automatically after a successful submit. */
+  clearDraft() {
+    clearTimeout(this.draftTimer)
+    const draft = this.options.draft
+    try {
+      if (draft) this.storage()?.removeItem(draft.key)
+    } catch {
+      // Nothing to clear.
+    }
+  }
+
+  /** Starts a fetch for every lookup field whose query has changed since it was last fetched. */
+  private syncLookups() {
+    let started = false
+    for (const field of Object.values(this.state.fields)) {
+      if (field.lookup === undefined) continue
+      const { path } = field
+      const key = JSON.stringify(field.lookup)
+      if (this.lookupKeys.get(path) === key) continue
+      this.lookupKeys.set(path, key)
+      clearTimeout(this.lookupTimers.get(path))
+      const finish = (value: unknown) => {
+        // A newer query has replaced this one; its answer is no longer wanted.
+        if (this.lookupKeys.get(path) !== key) return
+        const wasLoading = this.loading.delete(path)
+        if (JSON.stringify(this.getValue(path) ?? null) !== JSON.stringify(value ?? null)) this.setValue(path, value ?? null)
+        else if (wasLoading) this.emit()
+      }
+      const query = field.lookup
+      const resolver = this.options.lookup
+      if (query === null || !resolver) {
+        finish(null)
+        continue
+      }
+      if (!this.loading.has(path)) {
+        this.loading.add(path)
+        started = true
+      }
+      this.lookupTimers.set(
+        path,
+        setTimeout(() => {
+          Promise.resolve()
+            .then(() => resolver(query))
+            .then(finish, () => finish(null))
+        }, this.options.lookupDelay ?? 250),
+      )
+    }
+    if (started) this.emit()
   }
 
   subscribe = (listener: Listener) => {
@@ -161,6 +261,8 @@ export class FormStore<D = FormValues> {
     this.state = computeState(this.schema, this.values, this.options.compute)
     this.emit()
     this.options.onChange?.(this.values, this.state)
+    this.saveDraft()
+    this.syncLookups()
   }
 
   /** Replaces the schema, keeping the values that still apply. */
@@ -237,6 +339,7 @@ export class FormStore<D = FormValues> {
     const value = fs?.type === 'calculated' || raw === undefined ? fs?.value : raw
     const errors = fs?.errors ?? []
     const touched = this.touched.has(path)
+    const loading = this.loading.has(path)
     const show = touched || this.submitted || (fs !== undefined && this.revealed.has(fs.page))
     const snap: FieldSnapshot = {
       path,
@@ -247,6 +350,7 @@ export class FormStore<D = FormValues> {
       required: fs?.required ?? false,
       disabled: fs?.disabled ?? false,
       touched,
+      loading,
     }
     const prev = cached?.snap
     const same =
@@ -257,6 +361,7 @@ export class FormStore<D = FormValues> {
       prev.required === snap.required &&
       prev.disabled === snap.disabled &&
       prev.touched === snap.touched &&
+      prev.loading === snap.loading &&
       prev.errors.join('\n') === errors.join('\n')
     const result = same ? prev : snap
     this.fieldCache.set(path, { version: this.version, snap: result })
@@ -306,6 +411,7 @@ export class FormStore<D = FormValues> {
     this.emit()
     try {
       await this.options.onSubmit?.(this.state.data as D)
+      this.clearDraft()
     } finally {
       this.submitting = false
       this.emit()

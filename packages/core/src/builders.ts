@@ -67,6 +67,14 @@ export class FieldBuilder<S extends Shape = {}> {
   check(expression: string, message: string) {
     return this.rule({ rules: [...(this.schema.validate?.rules ?? []), { expression, message }] })
   }
+  /** Width in twelfths of the row: 6 is half, 4 a third. Collapses to full width on narrow forms. */
+  width(width: number) {
+    return this.set({ width })
+  }
+  /** Extra CSS classes for the component's wrapper. */
+  className(className: string) {
+    return this.set({ className })
+  }
   visibleWhen(visibleWhen: string) {
     return this.set({ visibleWhen })
   }
@@ -101,6 +109,21 @@ export const hidden = <K extends string>(key: K) => make<K, unknown>('hidden', k
 export const checkbox = <K extends string>(key: K) => make<K, boolean>('checkbox', key)
 export const toggle = <K extends string>(key: K) => make<K, boolean>('toggle', key)
 export const file = <K extends string>(key: K) => make<K, unknown>('file', key)
+
+export const url = <K extends string>(key: K) => make<K, string>('url', key)
+/** Stars from 1 to `max` (5 unless given). */
+export const rating = <K extends string>(key: K, max = 5) => make<K, number | null>('rating', key, { max })
+/** A number picked on a track. Set the range with `.min()` and `.max()`. */
+export const slider = <K extends string>(key: K) => make<K, number | null>('slider', key)
+
+/**
+ * A read-only value fetched from a data source, e.g.
+ * `lookup('studentName', { source: 'students', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'fullName' })`.
+ */
+export const lookup = <K extends string, V = unknown>(
+  key: K,
+  query: { source: string; matchField: string; matchValue: string; returnField?: string; aggregate?: ComponentSchema['aggregate'] },
+) => make<K, V | null>('lookup', key, query)
 
 /** Choices as `{ value: 'Label' }` or as a list of `{ label, value }`. */
 export const select = <K extends string, O extends string>(key: K, choices: Choices<O>) =>

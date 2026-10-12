@@ -136,7 +136,7 @@ describe('<FormBuilder>', () => {
     await user.selectOptions(settings().getByLabelText('Rule 2 comparison'), 'gte')
     await user.type(settings().getByLabelText('Rule 2 value'), '16')
     expect(latest().pages[0].components[3].visibleWhen).toBe('country == "NP" AND age >= 16')
-    await user.click(settings().getByRole('button', { name: 'Any rule' }))
+    await user.click(settings().getByRole('button', { name: 'Any of these' }))
     expect(latest().pages[0].components[3].visibleWhen).toBe('country == "NP" OR age >= 16')
 
     await user.click(settings().getByRole('button', { name: '+ Add rule' }))
@@ -148,6 +148,71 @@ describe('<FormBuilder>', () => {
     await user.click(settings().getByRole('button', { name: 'Remove rule 1' }))
     await user.click(settings().getByRole('button', { name: 'Remove rule 1' }))
     expect(latest().pages[0].components[3]).not.toHaveProperty('visibleWhen')
+  })
+
+  it('builds a nested group of rules', async () => {
+    const { user, latest, settings } = setup(form('F', [select('country', { NP: 'Nepal' }).label('Country'), number('age').label('Age'), checkbox('consent').label('Consent'), text('district').label('District')]))
+    await user.click(screen.getByRole('button', { name: 'Text: District' }))
+    await user.click(settings().getByRole('tab', { name: 'Logic' }))
+    await user.click(settings().getByRole('button', { name: '+ Add rule' }))
+    await user.selectOptions(settings().getByLabelText('Rule 1 field'), 'country')
+    await user.type(settings().getByLabelText('Rule 1 value'), 'NP')
+    await user.click(settings().getByRole('button', { name: '+ Add group' }))
+    await user.selectOptions(settings().getByLabelText('Group rule 1 field'), 'age')
+    await user.selectOptions(settings().getByLabelText('Group rule 1 comparison'), 'gte')
+    await user.type(settings().getByLabelText('Group rule 1 value'), '16')
+    expect(latest().pages[0].components[3].visibleWhen).toBe('country == "NP" AND age >= 16')
+    await user.click(settings().getByRole('button', { name: '+ Add to group' }))
+    await user.selectOptions(settings().getByLabelText('Group rule 2 field'), 'consent')
+    expect(latest().pages[0].components[3].visibleWhen).toBe('country == "NP" AND (age >= 16 OR consent == true)')
+    await user.click(settings().getByRole('button', { name: 'Remove group 2' }))
+    expect(latest().pages[0].components[3].visibleWhen).toBe('country == "NP"')
+  })
+
+  it('sets width, appearance and lookup settings', async () => {
+    const { user, latest, palette, settings } = setup()
+    await user.selectOptions(settings().getByLabelText('Size'), 'lg')
+    await user.selectOptions(settings().getByLabelText('Field style'), 'filled')
+    expect(latest().appearance).toEqual({ size: 'lg', variant: 'filled' })
+    await user.selectOptions(settings().getByLabelText('Size'), '')
+    expect(latest().appearance).toEqual({ variant: 'filled' })
+
+    await user.click(palette.getByRole('button', { name: /^Text$/ }))
+    await user.selectOptions(settings().getByLabelText('Width'), '6')
+    expect(latest().pages[0].components[0].width).toBe(6)
+    expect(screen.getByText('50% wide')).toBeTruthy()
+    await user.selectOptions(settings().getByLabelText('Width'), '')
+    expect(latest().pages[0].components[0]).not.toHaveProperty('width')
+
+    await user.click(palette.getByRole('button', { name: /^Lookup$/ }))
+    expect(screen.getByText('1 problem')).toBeTruthy()
+    await user.type(settings().getByLabelText('Data source'), 'students')
+    await user.type(settings().getByLabelText('Field to match in the source'), 'rollNo')
+    await user.type(settings().getByLabelText('Value to match'), 'text')
+    await user.type(settings().getByLabelText('Field to return'), 'fullName')
+    await user.selectOptions(settings().getByLabelText('If several records match'), 'sum')
+    expect(latest().pages[0].components[1]).toEqual({
+      type: 'lookup', label: 'Lookup', key: 'lookup', source: 'students', matchField: 'rollNo', matchValue: 'text', returnField: 'fullName', aggregate: 'sum',
+    })
+    expect(screen.getByText('No problems')).toBeTruthy()
+  })
+
+  it('drags a card by touch', () => {
+    const { latest } = setup(form('F', [text('a').label('A'), text('b').label('B'), text('c').label('C')]))
+    const card = (name: string) => screen.getByRole('button', { name: `Text: ${name}` })
+    const list = card('A').parentElement!
+    // jsdom has no layout, so place the three cards 100px apart and say which element is under the finger.
+    ;['A', 'B', 'C'].forEach((name, i) => {
+      card(name).getBoundingClientRect = () => ({ top: i * 100, height: 100 }) as DOMRect
+    })
+    document.elementFromPoint = () => list
+    const touch = (y: number) => ({ touches: [{ clientX: 10, clientY: y }] })
+    fireEvent.touchStart(card('A').querySelector('.fxb-grip')!)
+    fireEvent.touchMove(document, touch(260))
+    expect(document.querySelector('.fxb-indicator')).toBeTruthy()
+    fireEvent.touchEnd(document)
+    expect(latest().pages[0].components.map((c) => c.key)).toEqual(['b', 'c', 'a'])
+    expect(document.querySelector('.fxb-indicator')).toBeNull()
   })
 
   it('edits options and formulas, and reports problems', async () => {

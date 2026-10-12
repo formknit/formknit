@@ -10,6 +10,8 @@ export type {
   Option,
   FormValues,
   SchemaIssue,
+  LookupQuery,
+  Appearance,
 } from './types'
 export { defineField, getField, listFields } from './registry'
 export type { FieldDefinition, FieldKind } from './registry'
@@ -18,8 +20,8 @@ export type { Messages } from './messages'
 export { checkSchema } from './model'
 export { computeState, getInitialValues } from './state'
 export type { FormState, FieldState, PageState, ComputeOptions } from './state'
-export { validate, SchemaError } from './validate'
-export type { ValidationResult } from './validate'
+export { validate, validateAsync, resolveLookups, SchemaError } from './validate'
+export type { ValidationResult, LookupResolver } from './validate'
 export {
   compile,
   evaluate,
@@ -48,6 +50,10 @@ export {
   checkbox,
   toggle,
   file,
+  url,
+  rating,
+  slider,
+  lookup,
   calculated,
   repeater,
   panel,

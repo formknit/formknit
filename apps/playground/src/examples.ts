@@ -1,5 +1,6 @@
 import {
-  calculated, checkbox, columns, date, email, form, number, page, radio, repeater, select, text,
+  calculated, checkbox, columns, content, date, divider, email, field, form, lookup, number, page, panel, radio, rating,
+  repeater, select, slider, text, textarea, url, type LookupQuery,
 } from '@formknit/core'
 
 export const admission = form(
@@ -50,4 +51,46 @@ export const invoice = form(
   { submitLabel: 'Create invoice' },
 )
 
-export const examples = { 'Admission form': admission, 'Fee invoice (wizard)': invoice }
+export const showcase = form(
+  'Everything',
+  [
+    content('Layout', { heading: true }),
+    text('firstName').label('First name').width(6).required(),
+    text('lastName').label('Last name').width(6).required(),
+    text('city').label('City').width(4),
+    text('province').label('Province').width(4),
+    text('postcode').label('Postcode').width(4),
+    divider(),
+    content('Data from elsewhere', { heading: true }),
+    text('rollNumber').label('Roll number').description('Try 2027-0142 or 2027-0150').width(4),
+    lookup('studentName', { source: 'students', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'fullName' }).label('Student (looked up)').width(4),
+    lookup('paid', { source: 'payments', matchField: 'rollNo', matchValue: 'rollNumber', returnField: 'amount', aggregate: 'sum' }).label('Paid so far (looked up)').width(4),
+    divider(),
+    content('More field types', { heading: true }),
+    url('website').label('Website').placeholder('https://').width(6),
+    field('file', 'cv', { label: 'CV', accept: '.pdf', validate: { maxSizeMb: 1 }, description: 'PDF, up to 1 MB', width: 6 }),
+    rating('satisfaction').label('How satisfied are you?').width(6),
+    slider('confidence').label('Confidence').min(0).max(10).width(6),
+    panel('Feedback', [
+      radio('recommend', { yes: 'Yes', maybe: 'Maybe', no: 'No' }).label('Would you recommend us?').className('fx-stack-choices').width(4),
+      textarea('comments').label('Comments').width(8),
+    ]),
+  ],
+  { description: 'Widths, lookups and the newer field types. Resize the window to see the fields stack.' },
+)
+
+const STUDENTS: Record<string, { fullName: string; payments: number[] }> = {
+  '2027-0142': { fullName: 'Sita Sharma', payments: [9000, 3000] },
+  '2027-0150': { fullName: 'Arjun Thapa', payments: [4500] },
+}
+
+/** Stands in for your API: answers lookups from a small in-memory table after a short delay. */
+export async function fakeLookup(query: LookupQuery): Promise<unknown> {
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  const student = STUDENTS[String(query.where.rollNo)]
+  if (!student) return null
+  if (query.source === 'payments') return student.payments.reduce((a, b) => a + b, 0)
+  return student.fullName
+}
+
+export const examples = { 'Admission form': admission, 'Fee invoice (wizard)': invoice, Everything: showcase }

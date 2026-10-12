@@ -14,6 +14,8 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Radio from '@mui/material/Radio'
+import Rating from '@mui/material/Rating'
+import Slider from '@mui/material/Slider'
 import RadioGroup from '@mui/material/RadioGroup'
 import Stack from '@mui/material/Stack'
 import Step from '@mui/material/Step'
@@ -23,7 +25,7 @@ import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
-const INPUT_TYPE: Record<string, string> = { email: 'email', phone: 'tel', date: 'date', time: 'time' }
+const INPUT_TYPE: Record<string, string> = { email: 'email', phone: 'tel', date: 'date', time: 'time', url: 'url' }
 /** Error first, then the help text, in the slot Material UI reserves under a control. */
 const helper = (p: { error?: string; description?: string }) => p.error ?? p.description
 
@@ -89,9 +91,9 @@ function Calculated(p: FieldProps<unknown>) {
     <TextField
       id={p.id}
       label={p.label}
-      value={p.value === null || p.value === undefined ? '' : String(p.value)}
+      value={p.value === null || p.value === undefined ? '' : Array.isArray(p.value) ? p.value.join(', ') : String(p.value)}
       error={!!p.error}
-      helperText={helper(p)}
+      helperText={p.loading ? 'Looking up…' : helper(p)}
       fullWidth
       variant="filled"
       slotProps={{ input: { readOnly: true }, inputLabel: { shrink: true } }}
@@ -152,19 +154,64 @@ function Toggle(p: FieldProps<boolean>) {
   )
 }
 
+function RatingField(p: FieldProps<number | null>) {
+  return (
+    <FormControl error={!!p.error} required={p.required} disabled={p.disabled}>
+      <FormLabel id={`${p.id}-label`}>{p.label}</FormLabel>
+      <Rating
+        name={p.id}
+        aria-labelledby={`${p.id}-label`}
+        value={typeof p.value === 'number' ? p.value : null}
+        max={typeof p.component.max === 'number' ? p.component.max : 5}
+        disabled={p.disabled}
+        onChange={(_e, value) => p.onChange(value)}
+        onBlur={p.onBlur}
+      />
+      <FormHelperText>{helper(p)}</FormHelperText>
+    </FormControl>
+  )
+}
+
+function SliderField(p: FieldProps<number | null>) {
+  const min = typeof p.component.validate?.min === 'number' ? p.component.validate.min : 0
+  const max = typeof p.component.validate?.max === 'number' ? p.component.validate.max : 100
+  return (
+    <FormControl error={!!p.error} required={p.required} disabled={p.disabled} fullWidth>
+      <FormLabel id={`${p.id}-label`}>{p.label}</FormLabel>
+      <Slider
+        aria-labelledby={`${p.id}-label`}
+        value={typeof p.value === 'number' ? p.value : min}
+        min={min}
+        max={max}
+        step={typeof p.component.step === 'number' ? p.component.step : 1}
+        valueLabelDisplay="auto"
+        disabled={p.disabled}
+        onChange={(_e, value) => p.onChange(value as number)}
+        onBlur={p.onBlur}
+      />
+      <FormHelperText>{helper(p)}</FormHelperText>
+    </FormControl>
+  )
+}
+
 function FileField(p: FieldProps<unknown>) {
   const name = p.value && typeof p.value === 'object' && 'name' in p.value ? String(p.value.name) : ''
   return (
     <FormControl error={!!p.error} required={p.required} disabled={p.disabled}>
       <FormLabel htmlFor={p.id}>{p.label}</FormLabel>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-        <Button component="label" variant="outlined" disabled={p.disabled}>
-          Choose file
-          <input id={p.id} type="file" hidden onChange={(e) => p.onChange(e.target.files?.[0] ?? null)} onBlur={p.onBlur} />
+        <Button component="label" variant="outlined" disabled={p.disabled || p.loading}>
+          {p.loading ? 'Uploading…' : 'Choose file'}
+          <input id={p.id} type="file" hidden accept={p.component.accept} onChange={(e) => p.onChange(e.target.files?.[0] ?? null)} onBlur={p.onBlur} />
         </Button>
         <Typography variant="body2" color="text.secondary">
           {name || 'No file chosen'}
         </Typography>
+        {name && !p.disabled && (
+          <IconButton size="small" aria-label={`Remove ${name}`} onClick={() => p.onChange(null)}>
+            ×
+          </IconButton>
+        )}
       </Stack>
       <FormHelperText>{helper(p)}</FormHelperText>
     </FormControl>
@@ -181,7 +228,7 @@ function Panel({ component, children }: PanelProps) {
           {component.label}
         </Typography>
       )}
-      <Stack spacing={2}>{children}</Stack>
+      <div className="fx-stack">{children}</div>
     </Paper>
   )
 }
@@ -190,9 +237,9 @@ function Columns({ columns }: ColumnsProps) {
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
       {columns.map((col, i) => (
-        <Stack key={i} spacing={2} sx={{ flex: col.width, minWidth: 0 }}>
+        <Box key={i} className="fx-stack" sx={{ flex: col.width, minWidth: 0 }}>
           {col.children}
-        </Stack>
+        </Box>
       ))}
     </Stack>
   )
@@ -214,9 +261,9 @@ function Repeater(p: RepeaterProps) {
       <Stack spacing={1.5} sx={{ mt: 1 }}>
         {p.rows.map((row) => (
           <Stack key={row.index} direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-            <Stack direction={p.component.compact === true ? { xs: 'column', sm: 'row' } : 'column'} spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
+            <Box className={p.component.compact === true ? 'fx-stack fx-compact-row' : 'fx-stack'} sx={{ flex: 1, minWidth: 0 }}>
               {row.children}
-            </Stack>
+            </Box>
             {!p.disabled && (
               <Stack direction="row">
                 {row.moveUp && (
@@ -271,6 +318,7 @@ function Steps({ pages, step }: StepsProps) {
 
 /**
  * Renders Formknit forms with Material UI: `<Form schema={schema} components={muiAdapter} />`.
+ * Keep importing `@formknit/react/styles.css`: it provides the grid that lays fields out.
  * It follows your MUI theme. To change one field, spread it: `{ ...muiAdapter, fields: { ...muiAdapter.fields, date: MyDatePicker } }`.
  */
 export const muiAdapter = {
@@ -282,6 +330,10 @@ export const muiAdapter = {
     number: Input,
     date: Input,
     time: Input,
+    url: Input,
+    rating: RatingField,
+    slider: SliderField,
+    lookup: Calculated,
     select: Select,
     radio: RadioField,
     checkboxGroup: CheckboxGroup,

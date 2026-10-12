@@ -280,6 +280,8 @@
 .fxb-grip {
   display: grid;
   cursor: grab;
+  /* Lets a finger drag the handle without scrolling the page. */
+  touch-action: none;
 }
 .fxb-type {
   display: inline-flex;
@@ -439,6 +441,14 @@ textarea.fxb-input {
   padding: 8px;
   border-radius: var(--fx-radius);
   background: var(--fx-subtle);
+}
+.fxb-rule-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--fx-border);
+  border-radius: var(--fx-radius);
 }
 .fxb-rule-divider {
   width: 100%;
