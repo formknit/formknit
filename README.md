@@ -122,12 +122,17 @@ pnpm dev:api    # API on http://localhost:8787
 pnpm dev:web    # app on http://localhost:5175
 ```
 
-The demo sign-in is in `apps/api/scripts/seed.ts`. It is for local development only.
+The seed creates two accounts in one workspace, an owner and a reviewer, so you can see how
+roles differ. Their sign-in details are in `apps/api/scripts/seed.ts`. They are for local
+development only.
 
 What works today:
 
 - **Accounts:** register, sign in, password reset by emailed link, change name and password,
   API keys for read-only access from your own programs
+- **Teams:** forms live in a workspace. Invite people by email as viewer, reviewer, editor or
+  admin; switch between workspaces; each role sees only the actions it may take, and the server
+  enforces the same rules
 - **Forms:** create blank or from a template, edit in the builder with autosave, duplicate,
   publish, unpublish, delete. Draft and published versions are separate
 - **Version history:** every publish is kept and can be restored as the draft
@@ -145,8 +150,8 @@ Email is not connected to a mail server yet. In development each message is prin
 terminal and stored in the `outbox` table; to send for real, give `createMailer` a transport in
 `apps/api/src/index.ts`.
 
-It uses SQLite through Drizzle so it can move to PostgreSQL. Not built: teams and roles,
-payments, Google Sheets, PDF generation, Excel export, PostgreSQL and Docker setup.
+It uses SQLite through Drizzle so it can move to PostgreSQL. Not built: payments, Google
+Sheets, PDF generation, Excel export, PostgreSQL and Docker setup.
 
 ## Server validation
 

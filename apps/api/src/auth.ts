@@ -29,9 +29,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
 const tokenId = (token: string) => createHash('sha256').update(token).digest('hex')
 
 /** Returns the token to put in the cookie. Only its hash is stored. */
-export function createSession(db: Db, userId: string, now = Date.now()): string {
+export function createSession(db: Db, userId: string, workspaceId: string | null = null, now = Date.now()): string {
   const token = randomBytes(32).toString('base64url')
-  db.insert(sessions).values({ id: tokenId(token), userId, createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 }).run()
+  db.insert(sessions).values({ id: tokenId(token), userId, workspaceId, createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 }).run()
   // Tidy up while we are here; expired sessions are useless.
   db.delete(sessions).where(lt(sessions.expiresAt, now)).run()
   return token
@@ -40,11 +40,16 @@ export function createSession(db: Db, userId: string, now = Date.now()): string 
 export function findSessionUser(db: Db, token: string | undefined, now = Date.now()) {
   if (!token) return undefined
   return db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({ id: users.id, email: users.email, name: users.name, workspaceId: sessions.workspaceId })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.id, tokenId(token)), gt(sessions.expiresAt, now)))
     .get()
+}
+
+/** Remembers which workspace a session is working in. */
+export function setSessionWorkspace(db: Db, token: string | undefined, workspaceId: string) {
+  if (token) db.update(sessions).set({ workspaceId }).where(eq(sessions.id, tokenId(token))).run()
 }
 
 export function deleteSession(db: Db, token: string | undefined) {

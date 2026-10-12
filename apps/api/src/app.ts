@@ -4,13 +4,15 @@ import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { cors } from 'hono/cors'
 import {
-  createSession, deleteSession, findSessionUser, hashPassword, newId, rateLimiter, SESSION_COOKIE, SESSION_DAYS, verifyPassword,
+  createSession, deleteSession, findSessionUser, hashPassword, newId, rateLimiter, SESSION_COOKIE, SESSION_DAYS, setSessionWorkspace,
+  verifyPassword,
 } from './auth'
 import { columnsOf, toCsv } from './csv'
 import {
-  apiKeys, deliveries, files, forms, notes, passwordResets, sessions, STATUSES, submissions, users, versions, webhooks, type Db,
-  type FormSettings, type Status,
+  apiKeys, deliveries, files, forms, invites, members, notes, passwordResets, sessions, STATUSES, submissions, users, versions,
+  webhooks, workspaces, type Db, type FormSettings, type Status,
 } from './db'
+import { atLeast, isRole, NEEDS, rank, type Role } from './roles'
 import { makeLookup, schemaAllows } from './lookup'
 import {
   buildReport, createMailer, dailySeries, deliver, findField, memoryStorage, randomToken, sha256, webhookUrlProblem, type Mail,
@@ -35,7 +37,8 @@ export interface AppOptions {
 }
 
 type User = { id: string; email: string; name: string }
-type Env = { Variables: { user: User; viaKey: boolean } }
+type Workspace = { id: string; name: string; role: Role }
+type Env = { Variables: { user: User; viaKey: boolean; ws: Workspace } }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const SLUG = /^[a-z0-9][a-z0-9-]{0,59}$/
@@ -118,8 +121,34 @@ export function createApp(options: AppOptions) {
     return next()
   })
 
-  const startSession = (c: Context, userId: string) =>
-    setCookie(c, SESSION_COOKIE, createSession(db, userId), {
+  const createWorkspace = (userId: string, name: string) => {
+    const id = newId()
+    const now = Date.now()
+    db.insert(workspaces).values({ id, name: name.slice(0, 80), createdAt: now }).run()
+    db.insert(members).values({ workspaceId: id, userId, role: 'owner', createdAt: now }).run()
+    return id
+  }
+  const membershipsOf = (userId: string): Workspace[] =>
+    db
+      .select({ id: workspaces.id, name: workspaces.name, role: members.role })
+      .from(members)
+      .innerJoin(workspaces, eq(workspaces.id, members.workspaceId))
+      .where(eq(members.userId, userId))
+      .orderBy(asc(members.createdAt))
+      .all()
+  /** The workspace a person is working in: the one their session remembers if they still belong to it. */
+  const currentWorkspace = (userId: string, preferred: string | null | undefined, userName: string) => {
+    let list = membershipsOf(userId)
+    // Someone removed from every team still needs somewhere to work.
+    if (!list.length) {
+      createWorkspace(userId, `${userName}'s workspace`)
+      list = membershipsOf(userId)
+    }
+    return { ws: list.find((w) => w.id === preferred) ?? list[0], list }
+  }
+
+  const startSession = (c: Context, userId: string, workspaceId: string | null = null) =>
+    setCookie(c, SESSION_COOKIE, createSession(db, userId, workspaceId), {
       httpOnly: true,
       sameSite: 'Lax',
       secure: secureCookies,
@@ -144,7 +173,7 @@ export function createApp(options: AppOptions) {
     }
     const user = { id: newId(), email, name }
     db.insert(users).values({ ...user, passwordHash: await hashPassword(password), createdAt: Date.now() }).run()
-    startSession(c, user.id)
+    startSession(c, user.id, createWorkspace(user.id, `${name}'s workspace`))
     return c.json({ user }, 201)
   })
 
@@ -167,7 +196,21 @@ export function createApp(options: AppOptions) {
     return c.json({ ok: true })
   })
 
-  app.get('/api/auth/me', (c) => c.json({ user: findSessionUser(db, getCookie(c, SESSION_COOKIE)) ?? null }))
+  app.get('/api/auth/me', (c) => {
+    const found = findSessionUser(db, getCookie(c, SESSION_COOKIE))
+    if (!found) return c.json({ user: null })
+    const { workspaceId, ...user } = found
+    const { ws, list } = currentWorkspace(user.id, workspaceId, user.name)
+    return c.json({ user, workspace: ws, workspaces: list })
+  })
+
+  // Lets the invite page say what the invitation is before the person signs in.
+  app.get('/api/auth/invite', (c) => {
+    const invite = db.select().from(invites).where(and(eq(invites.id, sha256(c.req.query('token') ?? '')), gt(invites.expiresAt, Date.now()))).get()
+    if (!invite || invite.acceptedAt) throw new ApiError(404, 'bad_invite', 'This invitation is not valid any more. Ask for a new one')
+    const ws = db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, invite.workspaceId)).get()
+    return c.json({ workspace: ws?.name ?? '', email: invite.email, role: invite.role })
+  })
 
   // The answer is the same whether or not the account exists, so this cannot be used to find out who has one.
   app.post('/api/auth/forgot', async (c) => {
@@ -234,7 +277,7 @@ export function createApp(options: AppOptions) {
     if (!isObject(query.where) || typeof query.source !== 'string' || !schemaAllows(form.publishedSchema, query)) {
       throw new ApiError(403, 'not_allowed', 'This form does not define that lookup')
     }
-    return c.json({ value: (await makeLookup(db, form.ownerId)(query)) ?? null })
+    return c.json({ value: (await makeLookup(db, form.workspaceId)(query)) ?? null })
   })
 
   // Uploads are accepted only for a file field the form really has, within that field's own limits.
@@ -283,7 +326,7 @@ export function createApp(options: AppOptions) {
     if (!submitLimit(`${form.id}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many submissions. Try again in a minute')
     if (closedReason(form)) throw new ApiError(403, 'closed', 'This form is not accepting responses')
     // Lookups are fetched again here and formulas recalculated, so nothing the browser sent is trusted.
-    const result = await validateAsync(form.publishedSchema, await body(c), { lookup: makeLookup(db, form.ownerId) })
+    const result = await validateAsync(form.publishedSchema, await body(c), { lookup: makeLookup(db, form.workspaceId) })
     if (!result.valid) throw new ApiError(422, 'invalid', 'Some answers need attention', result.errors)
     const row = { id: newId(), formId: form.id, data: result.data, status: 'new' as const, createdAt: Date.now() }
     db.insert(submissions).values(row).run()
@@ -294,24 +337,36 @@ export function createApp(options: AppOptions) {
   // ---------- Signed-in only from here ----------
   const signedIn = new Hono<Env>()
   signedIn.use('*', async (c, next) => {
-    let user = findSessionUser(db, getCookie(c, SESSION_COOKIE))
-    let viaKey = false
+    const found = findSessionUser(db, getCookie(c, SESSION_COOKIE))
     const bearer = c.req.header('authorization')?.match(/^Bearer (fk_[A-Za-z0-9_-]+)$/)?.[1]
-    if (!user && bearer) {
-      // API keys can read but not change anything.
+    if (found) {
+      const { workspaceId, ...user } = found
+      c.set('user', user)
+      c.set('viaKey', false)
+      c.set('ws', currentWorkspace(user.id, workspaceId, user.name).ws)
+      return next()
+    }
+    if (bearer) {
+      // API keys can read one workspace and change nothing.
       if (c.req.method !== 'GET') throw new ApiError(403, 'read_only', 'API keys can only read data')
       const key = db.select().from(apiKeys).where(eq(apiKeys.id, sha256(bearer))).get()
-      if (key) {
-        user = db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, key.userId)).get()
+      const user = key && db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, key.userId)).get()
+      // The key stops working if its creator has left the workspace.
+      const ws = user && membershipsOf(user.id).find((w) => w.id === key.workspaceId)
+      if (key && user && ws) {
         db.update(apiKeys).set({ lastUsedAt: Date.now() }).where(eq(apiKeys.id, key.id)).run()
-        viaKey = true
+        c.set('user', user)
+        c.set('viaKey', true)
+        c.set('ws', { ...ws, role: 'viewer' })
+        return next()
       }
     }
-    if (!user) throw new ApiError(401, 'signed_out', 'Sign in to continue')
-    c.set('user', user)
-    c.set('viaKey', viaKey)
-    return next()
+    throw new ApiError(401, 'signed_out', 'Sign in to continue')
   })
+  /** Stops the request unless the person's role in this workspace is high enough. */
+  const need = (c: Context<Env>, what: keyof typeof NEEDS) => {
+    if (!atLeast(c.get('ws').role, NEEDS[what])) throw new ApiError(403, 'forbidden', `Your role (${c.get('ws').role}) cannot do this. It needs ${NEEDS[what]} or above`)
+  }
   /** Account management needs a real sign-in, not an API key. */
   const sessionOnly = (c: Context<Env>) => {
     if (c.get('viaKey')) throw new ApiError(403, 'session_required', 'This needs a signed-in session, not an API key')
@@ -338,20 +393,161 @@ export function createApp(options: AppOptions) {
     db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, row.id)).run()
     // Sign out every other device, and give this one a fresh session.
     db.delete(sessions).where(eq(sessions.userId, row.id)).run()
-    startSession(c, row.id)
+    startSession(c, row.id, c.get('ws').id)
+    return c.json({ ok: true })
+  })
+
+  // ---------- Workspaces and teams ----------
+  signedIn.post('/workspaces', async (c) => {
+    sessionOnly(c)
+    const name = str((await body(c)).name)
+    if (!name) throw new ApiError(422, 'invalid', 'Please check the details', { name: ['Enter a name'] })
+    const id = createWorkspace(c.get('user').id, name)
+    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), id)
+    return c.json({ workspace: { id, name: name.slice(0, 80), role: 'owner' } }, 201)
+  })
+
+  signedIn.post('/workspaces/switch', async (c) => {
+    sessionOnly(c)
+    const wanted = str((await body(c)).id)
+    const ws = membershipsOf(c.get('user').id).find((w) => w.id === wanted)
+    if (!ws) throw new ApiError(404, 'not_found', 'You are not a member of that workspace')
+    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), ws.id)
+    return c.json({ workspace: ws })
+  })
+
+  signedIn.patch('/workspace', async (c) => {
+    sessionOnly(c)
+    need(c, 'own')
+    const name = str((await body(c)).name)
+    if (!name) throw new ApiError(422, 'invalid', 'Please check the details', { name: ['Enter a name'] })
+    db.update(workspaces).set({ name: name.slice(0, 80) }).where(eq(workspaces.id, c.get('ws').id)).run()
+    return c.json({ workspace: { ...c.get('ws'), name: name.slice(0, 80) } })
+  })
+
+  signedIn.get('/workspace/members', (c) => {
+    sessionOnly(c)
+    const ws = c.get('ws')
+    const people = db
+      .select({ id: users.id, name: users.name, email: users.email, role: members.role, joinedAt: members.createdAt })
+      .from(members)
+      .innerJoin(users, eq(users.id, members.userId))
+      .where(eq(members.workspaceId, ws.id))
+      .orderBy(asc(members.createdAt))
+      .all()
+    // Only people who can manage the team see who has been invited.
+    const pending = atLeast(ws.role, 'admin')
+      ? db
+          .select({ id: invites.id, email: invites.email, role: invites.role, expiresAt: invites.expiresAt, createdAt: invites.createdAt })
+          .from(invites)
+          .where(and(eq(invites.workspaceId, ws.id), gt(invites.expiresAt, Date.now())))
+          .all()
+          .filter((i) => !people.some((p) => p.email === i.email))
+      : []
+    return c.json({ members: people, invites: pending })
+  })
+
+  /** A role someone may hand out: always below their own, except that an owner may make admins. */
+  const mayGrant = (mine: Role, role: Role) => role !== 'owner' && rank(role) < rank(mine)
+
+  signedIn.post('/workspace/invites', async (c) => {
+    sessionOnly(c)
+    need(c, 'manage')
+    const ws = c.get('ws')
+    const input = await body(c)
+    const email = str(input.email).toLowerCase()
+    const role = input.role
+    if (!EMAIL.test(email)) throw new ApiError(422, 'invalid', 'Please check the details', { email: ['Enter a valid email address'] })
+    if (!isRole(role) || !mayGrant(ws.role, role)) throw new ApiError(422, 'invalid', 'Please check the details', { role: ['You cannot give that role'] })
+    const existing = db.select({ id: users.id }).from(users).innerJoin(members, eq(members.userId, users.id)).where(and(eq(users.email, email), eq(members.workspaceId, ws.id))).get()
+    if (existing) throw new ApiError(409, 'already_member', 'That person is already a member', { email: ['That person is already a member'] })
+    // A new invitation replaces any earlier one to the same address.
+    db.delete(invites).where(and(eq(invites.workspaceId, ws.id), eq(invites.email, email))).run()
+    const token = randomToken()
+    const now = Date.now()
+    db.insert(invites).values({ id: sha256(token), workspaceId: ws.id, email, role, invitedBy: c.get('user').id, expiresAt: now + 7 * DAY, createdAt: now }).run()
+    background(
+      mail({
+        to: email,
+        subject: `${c.get('user').name} invited you to ${ws.name} on Formknit`,
+        text: `${c.get('user').name} has invited you to join "${ws.name}" as ${role}.\n\nAccept the invitation (it works for 7 days):\n\n${webOrigins[0]}/invite?token=${token}\n\nSign in or create an account with this email address (${email}) to accept.`,
+      }),
+    )
+    return c.json({ ok: true }, 201)
+  })
+
+  signedIn.delete('/workspace/invites/:inviteId', (c) => {
+    sessionOnly(c)
+    need(c, 'manage')
+    db.delete(invites).where(and(eq(invites.id, c.req.param('inviteId')), eq(invites.workspaceId, c.get('ws').id))).run()
+    return c.json({ ok: true })
+  })
+
+  // Accepting needs the invited person themselves: signed in with the address the invitation was sent to.
+  signedIn.post('/invites/accept', async (c) => {
+    sessionOnly(c)
+    const id = sha256(str((await body(c)).token))
+    const invite = db.select().from(invites).where(and(eq(invites.id, id), gt(invites.expiresAt, Date.now()))).get()
+    if (!invite || invite.acceptedAt) throw new ApiError(404, 'bad_invite', 'This invitation is not valid any more. Ask for a new one')
+    if (invite.email !== c.get('user').email) throw new ApiError(403, 'wrong_account', `This invitation was sent to ${invite.email}. Sign in with that address to accept it`)
+    const now = Date.now()
+    db.update(invites).set({ acceptedAt: now }).where(eq(invites.id, id)).run()
+    const already = membershipsOf(c.get('user').id).some((w) => w.id === invite.workspaceId)
+    if (!already) db.insert(members).values({ workspaceId: invite.workspaceId, userId: c.get('user').id, role: invite.role, createdAt: now }).run()
+    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), invite.workspaceId)
+    return c.json({ workspace: membershipsOf(c.get('user').id).find((w) => w.id === invite.workspaceId) })
+  })
+
+  const memberOf = (c: Context<Env>) => {
+    const target = db.select().from(members).where(and(eq(members.workspaceId, c.get('ws').id), eq(members.userId, c.req.param('userId') ?? ''))).get()
+    if (!target) throw new ApiError(404, 'not_found', 'That person is not a member')
+    return target
+  }
+
+  signedIn.patch('/workspace/members/:userId', async (c) => {
+    sessionOnly(c)
+    need(c, 'manage')
+    const ws = c.get('ws')
+    const target = memberOf(c)
+    const role = (await body(c)).role
+    // You can only change people below you, and only to roles below you.
+    if (target.userId === c.get('user').id || rank(target.role) >= rank(ws.role)) throw new ApiError(403, 'forbidden', 'You cannot change this person')
+    if (!isRole(role) || !mayGrant(ws.role, role)) throw new ApiError(422, 'invalid', 'You cannot give that role')
+    db.update(members).set({ role }).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId))).run()
+    return c.json({ ok: true })
+  })
+
+  signedIn.delete('/workspace/members/:userId', (c) => {
+    sessionOnly(c)
+    const ws = c.get('ws')
+    const target = memberOf(c)
+    const self = target.userId === c.get('user').id
+    if (self && target.role === 'owner') throw new ApiError(403, 'forbidden', 'The owner cannot leave the workspace')
+    if (!self) {
+      need(c, 'manage')
+      if (rank(target.role) >= rank(ws.role)) throw new ApiError(403, 'forbidden', 'You cannot remove this person')
+    }
+    db.delete(members).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId))).run()
+    // Their keys for this workspace stop working, and their sessions fall back to another workspace.
+    db.delete(apiKeys).where(and(eq(apiKeys.workspaceId, ws.id), eq(apiKeys.userId, target.userId))).run()
     return c.json({ ok: true })
   })
 
   signedIn.get('/api-keys', (c) => {
     sessionOnly(c)
-    const rows = db.select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt }).from(apiKeys).where(eq(apiKeys.userId, c.get('user').id)).orderBy(desc(apiKeys.createdAt)).all()
+    const rows = db
+      .select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt })
+      .from(apiKeys)
+      .where(and(eq(apiKeys.userId, c.get('user').id), eq(apiKeys.workspaceId, c.get('ws').id)))
+      .orderBy(desc(apiKeys.createdAt))
+      .all()
     return c.json({ keys: rows })
   })
   signedIn.post('/api-keys', async (c) => {
     sessionOnly(c)
     const name = str((await body(c)).name).slice(0, 80) || 'API key'
     const key = `fk_${randomToken(24)}`
-    db.insert(apiKeys).values({ id: sha256(key), userId: c.get('user').id, name, prefix: key.slice(0, 10), createdAt: Date.now() }).run()
+    db.insert(apiKeys).values({ id: sha256(key), userId: c.get('user').id, workspaceId: c.get('ws').id, name, prefix: key.slice(0, 10), createdAt: Date.now() }).run()
     // The only time the key is ever shown.
     return c.json({ key, name, prefix: key.slice(0, 10) }, 201)
   })
@@ -361,9 +557,9 @@ export function createApp(options: AppOptions) {
     return c.json({ ok: true })
   })
 
-  /** Loads a form and checks it belongs to the signed-in user. Other people's forms look like they do not exist. */
+  /** Loads a form and checks it belongs to the current workspace. Other workspaces' forms look like they do not exist. */
   const ownForm = (c: Context<Env>, id = c.req.param('id') ?? '') => {
-    const form = db.select().from(forms).where(and(eq(forms.id, id), eq(forms.ownerId, c.get('user').id))).get()
+    const form = db.select().from(forms).where(and(eq(forms.id, id), eq(forms.workspaceId, c.get('ws').id))).get()
     if (!form) throw new ApiError(404, 'not_found', 'Form not found')
     return form
   }
@@ -389,7 +585,7 @@ export function createApp(options: AppOptions) {
   const detail = (form: typeof forms.$inferSelect) => ({ ...summary(form), schema: form.schema, settings: form.settings, issues: checkSchema(form.schema) })
 
   signedIn.get('/dashboard', (c) => {
-    const mine = db.select().from(forms).where(eq(forms.ownerId, c.get('user').id)).all()
+    const mine = db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id)).all()
     const ids = mine.map((f) => f.id)
     const rows = ids.length ? db.select().from(submissions).where(inArray(submissions.formId, ids)).orderBy(desc(submissions.createdAt)).all() : []
     const now = Date.now()
@@ -409,14 +605,14 @@ export function createApp(options: AppOptions) {
   signedIn.get('/templates', (c) => c.json({ templates: TEMPLATES.map(({ id, name, description, schema }) => ({ id, name, description, fields: columnsOf(schema).length })) }))
 
   signedIn.get('/forms', (c) => {
-    const rows = db.select().from(forms).where(eq(forms.ownerId, c.get('user').id)).orderBy(desc(forms.updatedAt)).all()
+    const rows = db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id)).orderBy(desc(forms.updatedAt)).all()
     return c.json({ forms: rows.map(summary) })
   })
 
-  const insertForm = (ownerId: string, name: string, schema: FormSchema, settings: FormSettings = {}) => {
+  const insertForm = (c: Context<Env>, name: string, schema: FormSchema, settings: FormSettings = {}) => {
     const now = Date.now()
     const form = {
-      id: newId(), ownerId, name, slug: uniqueSlug(slugify(name)), status: 'draft' as const, schema,
+      id: newId(), ownerId: c.get('user').id, workspaceId: c.get('ws').id, name, slug: uniqueSlug(slugify(name)), status: 'draft' as const, schema,
       publishedSchema: null, publishedAt: null, settings, createdAt: now, updatedAt: now,
     }
     db.insert(forms).values(form).run()
@@ -424,25 +620,28 @@ export function createApp(options: AppOptions) {
   }
 
   signedIn.post('/forms', async (c) => {
+    need(c, 'edit')
     const input = await body(c)
     const template = input.template ? TEMPLATES.find((t) => t.id === input.template) : undefined
     if (input.template && !template) throw new ApiError(422, 'invalid', 'That template does not exist')
     const name = (str(input.name) || template?.name || 'Untitled form').slice(0, 120)
     const given = isObject(input.schema) && Array.isArray(input.schema.pages) ? (input.schema as unknown as FormSchema) : undefined
     const schema = given ?? (template ? { ...template.schema, title: name } : blankSchema(name))
-    return c.json({ form: detail(insertForm(c.get('user').id, name, schema)) }, 201)
+    return c.json({ form: detail(insertForm(c, name, schema)) }, 201)
   })
 
   signedIn.post('/forms/:id/duplicate', (c) => {
+    need(c, 'edit')
     const source = ownForm(c)
     // The copy starts as an unpublished draft with the same design and settings, and no submissions.
     const { exposedFields: _unused, ...settings } = source.settings
-    return c.json({ form: detail(insertForm(c.get('user').id, `${source.name} (copy)`.slice(0, 120), source.schema, settings)) }, 201)
+    return c.json({ form: detail(insertForm(c, `${source.name} (copy)`.slice(0, 120), source.schema, settings)) }, 201)
   })
 
   signedIn.get('/forms/:id', (c) => c.json({ form: detail(ownForm(c)) }))
 
   signedIn.patch('/forms/:id', async (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     const input = await body(c)
     const patch: Partial<typeof forms.$inferInsert> = { updatedAt: Date.now() }
@@ -495,6 +694,7 @@ export function createApp(options: AppOptions) {
   })
 
   signedIn.post('/forms/:id/publish', (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     const errors = checkSchema(form.schema).filter((i) => i.level === 'error')
     if (errors.length) {
@@ -513,12 +713,14 @@ export function createApp(options: AppOptions) {
   })
 
   signedIn.post('/forms/:id/unpublish', (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     db.update(forms).set({ status: 'draft', updatedAt: Date.now() }).where(eq(forms.id, form.id)).run()
     return c.json({ form: summary(ownForm(c)) })
   })
 
   signedIn.delete('/forms/:id', async (c) => {
+    need(c, 'manage')
     const form = ownForm(c)
     for (const file of db.select({ id: files.id }).from(files).where(eq(files.formId, form.id)).all()) await storage.remove(file.id)
     db.delete(forms).where(eq(forms.id, form.id)).run()
@@ -543,6 +745,7 @@ export function createApp(options: AppOptions) {
 
   // Restoring copies an old version into the draft. Nothing changes for respondents until it is published.
   signedIn.post('/forms/:id/versions/:versionId/restore', (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     const version = db.select().from(versions).where(and(eq(versions.id, c.req.param('versionId')), eq(versions.formId, form.id))).get()
     if (!version) throw new ApiError(404, 'not_found', 'Version not found')
@@ -558,6 +761,7 @@ export function createApp(options: AppOptions) {
 
   // ---------- Webhooks ----------
   signedIn.get('/forms/:id/webhooks', (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     const hooks = db.select().from(webhooks).where(eq(webhooks.formId, form.id)).orderBy(asc(webhooks.createdAt)).all()
     return c.json({
@@ -571,6 +775,7 @@ export function createApp(options: AppOptions) {
     })
   })
   signedIn.post('/forms/:id/webhooks', async (c) => {
+    need(c, 'edit')
     const form = ownForm(c)
     const url = str((await body(c)).url)
     const problem = webhookUrlProblem(url, allowPrivateWebhooks)
@@ -586,15 +791,18 @@ export function createApp(options: AppOptions) {
     return hook
   }
   signedIn.patch('/forms/:id/webhooks/:hookId', async (c) => {
+    need(c, 'edit')
     const hook = ownHook(c)
     db.update(webhooks).set({ active: (await body(c)).active === true }).where(eq(webhooks.id, hook.id)).run()
     return c.json({ ok: true })
   })
   signedIn.delete('/forms/:id/webhooks/:hookId', (c) => {
+    need(c, 'edit')
     db.delete(webhooks).where(eq(webhooks.id, ownHook(c).id)).run()
     return c.json({ ok: true })
   })
   signedIn.post('/forms/:id/webhooks/:hookId/test', async (c) => {
+    need(c, 'edit')
     const hook = ownHook(c)
     const form = ownForm(c)
     const result = await deliver(db, fetcher, hook, 'webhook.test', { form: { id: form.id, name: form.name, slug: form.slug }, submission: null })
@@ -634,7 +842,7 @@ export function createApp(options: AppOptions) {
       .select({ submission: submissions, form: forms })
       .from(submissions)
       .innerJoin(forms, eq(forms.id, submissions.formId))
-      .where(and(eq(submissions.id, c.req.param('id') ?? ''), eq(forms.ownerId, c.get('user').id)))
+      .where(and(eq(submissions.id, c.req.param('id') ?? ''), eq(forms.workspaceId, c.get('ws').id)))
       .get()
     if (!row) throw new ApiError(404, 'not_found', 'Submission not found')
     return row
@@ -663,6 +871,7 @@ export function createApp(options: AppOptions) {
     const { submission, form } = ownSubmission(c)
     const input = await body(c)
     const patch: Partial<typeof submissions.$inferInsert> = { updatedAt: Date.now() }
+    need(c, input.data !== undefined ? 'edit' : 'review')
     if (input.status !== undefined) {
       const status = STATUSES.find((s) => s === input.status)
       if (!status) throw new ApiError(422, 'invalid', 'That is not a valid status')
@@ -671,7 +880,7 @@ export function createApp(options: AppOptions) {
     if (input.data !== undefined) {
       if (!isObject(input.data)) throw new ApiError(422, 'invalid', 'The answers must be an object')
       // Edited answers go through the same checks as a new submission.
-      const result = await validateAsync(form.publishedSchema ?? form.schema, input.data, { lookup: makeLookup(db, form.ownerId) })
+      const result = await validateAsync(form.publishedSchema ?? form.schema, input.data, { lookup: makeLookup(db, form.workspaceId) })
       if (!result.valid) throw new ApiError(422, 'invalid', 'Some answers need attention', result.errors)
       patch.data = result.data
     }
@@ -682,6 +891,7 @@ export function createApp(options: AppOptions) {
   })
 
   signedIn.post('/submissions/:id/notes', async (c) => {
+    need(c, 'review')
     const { submission } = ownSubmission(c)
     const text = str((await body(c)).body)
     if (!text) throw new ApiError(422, 'invalid', 'Please check the details', { body: ['Write a note first'] })
@@ -690,6 +900,7 @@ export function createApp(options: AppOptions) {
   })
 
   signedIn.delete('/submissions/:id', (c) => {
+    need(c, 'edit')
     db.delete(submissions).where(eq(submissions.id, ownSubmission(c).submission.id)).run()
     return c.json({ ok: true })
   })
@@ -700,7 +911,7 @@ export function createApp(options: AppOptions) {
       .select({ file: files })
       .from(files)
       .innerJoin(forms, eq(forms.id, files.formId))
-      .where(and(eq(files.id, c.req.param('id')), eq(forms.ownerId, c.get('user').id)))
+      .where(and(eq(files.id, c.req.param('id')), eq(forms.workspaceId, c.get('ws').id)))
       .get()
     const bytes = row ? await storage.read(row.file.id) : null
     if (!row || !bytes) throw new ApiError(404, 'not_found', 'File not found')

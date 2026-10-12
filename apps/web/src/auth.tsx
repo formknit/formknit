@@ -1,25 +1,53 @@
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { api, ApiError, type User } from './api'
+import { api, ApiError, atLeast, ROLE_LABEL, type Role, type User, type Workspace } from './api'
 
 interface Auth {
   /** `undefined` while the session is being checked, `null` when signed out. */
   user: User | null | undefined
   setUser: (user: User | null) => void
+  /** The workspace being worked in, and the person's role there. */
+  workspace: Workspace | undefined
+  workspaces: Workspace[]
+  /** Whether the person's role in this workspace is at least `minimum`. */
+  can: (minimum: Role) => boolean
+  /** Reloads the account and workspace, e.g. after switching workspace. */
+  refresh: () => Promise<void>
 }
 
-const AuthContext = createContext<Auth>({ user: undefined, setUser: () => {} })
+const AuthContext = createContext<Auth>({ user: undefined, setUser: () => {}, workspace: undefined, workspaces: [], can: () => false, refresh: async () => {} })
 export const useAuth = () => useContext(AuthContext)
 
+interface Me {
+  user: User | null
+  workspace?: Workspace
+  workspaces?: Workspace[]
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null | undefined>(undefined)
-  useEffect(() => {
-    api<{ user: User | null }>('/auth/me').then(
-      (res) => setUser(res.user),
-      () => setUser(null),
-    )
-  }, [])
-  return <AuthContext.Provider value={{ user, setUser }}>{children}</AuthContext.Provider>
+  const [me, setMe] = useState<Me | undefined>(undefined)
+  const refresh = useCallback(
+    () =>
+      api<Me>('/auth/me').then(
+        (res) => setMe(res),
+        () => setMe({ user: null }),
+      ),
+    [],
+  )
+  useEffect(() => void refresh(), [refresh])
+  const value: Auth = {
+    user: me === undefined ? undefined : me.user,
+    // Signing in or out changes the workspace too, so reload everything.
+    setUser: (user) => {
+      setMe((current) => ({ ...current, user }))
+      void refresh()
+    },
+    workspace: me?.workspace,
+    workspaces: me?.workspaces ?? [],
+    can: (minimum) => atLeast(me?.workspace?.role, minimum),
+    refresh,
+  }
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 /** Sends signed-out visitors to the sign-in page, and brings them back afterwards. */
@@ -188,6 +216,69 @@ export function ResetPage() {
           <Link to="/forgot">Ask for a new link</Link>
         </p>
       </form>
+    </div>
+  )
+}
+
+/** Opened from the emailed link. Shows what the invitation is, then lets the invited person accept. */
+export function InvitePage() {
+  const { user, refresh } = useAuth()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const token = params.get('token') ?? ''
+  const [invite, setInvite] = useState<{ workspace: string; email: string; role: Role } | null>(null)
+  const [error, setError] = useState<ApiError | null>(null)
+  useEffect(() => {
+    api<{ workspace: string; email: string; role: Role }>(`/auth/invite?token=${encodeURIComponent(token)}`).then(setInvite, setError)
+  }, [token])
+  const accept = async () => {
+    setError(null)
+    try {
+      await api('/invites/accept', { method: 'POST', body: { token } })
+      await refresh()
+      navigate('/')
+    } catch (err) {
+      setError(err as ApiError)
+    }
+  }
+  const here = { from: `/invite?token=${token}` }
+  return (
+    <div className="center">
+      <div className="card auth-card">
+        <Logo />
+        {!invite && !error && <p className="muted">Loading…</p>}
+        {invite && (
+          <>
+            <div>
+              <h1>Join {invite.workspace}</h1>
+              <p className="muted">
+                You have been invited as {ROLE_LABEL[invite.role].toLowerCase()}. The invitation was sent to <strong>{invite.email}</strong>.
+              </p>
+            </div>
+            {user === null && (
+              <>
+                <p>Sign in or create an account with that email address to accept.</p>
+                <Link className="button primary" to="/login" state={here}>
+                  Sign in
+                </Link>
+                <Link className="button" to="/register" state={here}>
+                  Create an account
+                </Link>
+              </>
+            )}
+            {user && (
+              <button className="button primary" onClick={accept}>
+                Accept invitation
+              </button>
+            )}
+          </>
+        )}
+        {error && (
+          <div className="banner danger" role="alert">
+            {error.message}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

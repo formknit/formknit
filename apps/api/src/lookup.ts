@@ -37,14 +37,14 @@ const text = (v: unknown) => (v === null || v === undefined ? '' : String(v))
 
 /**
  * Answers lookups from another form's submissions. A source is a form's slug, and it must
- * belong to the same owner. Only fields the source form has marked as exposed can be matched
+ * belong to the same workspace. Only fields the source form has marked as exposed can be matched
  * on or returned.
  */
-export function makeLookup(db: Db, ownerId: string): LookupResolver {
+export function makeLookup(db: Db, workspaceId: string): LookupResolver {
   return (query) => {
     const [[field, value] = []] = Object.entries(query.where)
     if (!field) return null
-    const source = db.select().from(forms).where(and(eq(forms.ownerId, ownerId), eq(forms.slug, query.source))).get()
+    const source = db.select().from(forms).where(and(eq(forms.workspaceId, workspaceId), eq(forms.slug, query.source))).get()
     if (!source) return null
     const exposed = new Set(source.settings.exposedFields ?? [])
     if (!exposed.has(field) || (query.select && !exposed.has(query.select))) return null

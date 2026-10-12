@@ -52,6 +52,24 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   return { ...state, reload, setData: (data: T) => setState({ data, loading: false }) }
 }
 
+export const ROLES = ['viewer', 'reviewer', 'editor', 'admin', 'owner'] as const
+export type Role = (typeof ROLES)[number]
+export const ROLE_LABEL: Record<Role, string> = { viewer: 'Viewer', reviewer: 'Reviewer', editor: 'Editor', admin: 'Admin', owner: 'Owner' }
+export const ROLE_HELP: Record<Role, string> = {
+  viewer: 'Can see forms, submissions and reports',
+  reviewer: 'Can also set a status and add notes',
+  editor: 'Can also build and publish forms, and edit submissions',
+  admin: 'Can also delete forms and manage members',
+  owner: 'Can do everything',
+}
+export const atLeast = (role: Role | undefined, minimum: Role) => !!role && ROLES.indexOf(role) >= ROLES.indexOf(minimum)
+
+export interface Workspace {
+  id: string
+  name: string
+  role: Role
+}
+
 export interface User {
   id: string
   email: string

@@ -649,3 +649,25 @@ textarea {
     display: none;
   }
 }
+
+/* ---------- Team ---------- */
+.workspace-switch select {
+  width: 100%;
+}
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+.roles > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px;
+}
+.roles dt {
+  font-weight: 500;
+}
+.roles dd {
+  margin: 0;
+}

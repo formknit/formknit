@@ -18,6 +18,7 @@ import {
   type Status,
   type Submission,
 } from './api'
+import { useAuth } from './auth'
 import { Reports, Versions, Webhooks } from './FormExtras'
 import { StatusBadge } from './FormsPage'
 
@@ -33,8 +34,11 @@ const TABS: { id: Tab; label: string }[] = [
 
 export function FormPage() {
   const { id = '' } = useParams()
+  const { can } = useAuth()
   const [params, setParams] = useSearchParams()
-  const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'build') as Tab
+  // People who cannot edit start on the submissions, and do not see the tabs that change the form.
+  const tabs = TABS.filter((t) => can('editor') || t.id === 'submissions' || t.id === 'reports' || t.id === 'share')
+  const tab = (tabs.find((t) => t.id === params.get('tab'))?.id ?? tabs[0].id) as Tab
   const { data, error, loading, setData } = useLoad(
     () => api<{ form: FormDetail }>(`/forms/${id}`),
     [id],
@@ -119,25 +123,29 @@ export function FormPage() {
           </h1>
         </div>
         <div className="row">
-          <span className={saving === 'failed' ? 'danger small' : 'muted small'} aria-live="polite">
-            {saving === 'saving'
-              ? 'Saving…'
-              : saving === 'failed'
-                ? 'Could not save. Check your connection.'
-                : 'All changes saved'}
-          </span>
+          {can('editor') && (
+            <span className={saving === 'failed' ? 'danger small' : 'muted small'} aria-live="polite">
+              {saving === 'saving'
+                ? 'Saving…'
+                : saving === 'failed'
+                  ? 'Could not save. Check your connection.'
+                  : 'All changes saved'}
+            </span>
+          )}
           {form.status === 'published' && (
             <a className="button" href={`/f/${form.slug}`} target="_blank" rel="noreferrer">
               View form
             </a>
           )}
-          <button
-            className="button primary"
-            disabled={!needsPublish}
-            onClick={() => publish('publish')}
-          >
-            {form.status === 'draft' ? 'Publish' : needsPublish ? 'Publish changes' : 'Published'}
-          </button>
+          {can('editor') && (
+            <button
+              className="button primary"
+              disabled={!needsPublish}
+              onClick={() => publish('publish')}
+            >
+              {form.status === 'draft' ? 'Publish' : needsPublish ? 'Publish changes' : 'Published'}
+            </button>
+          )}
         </div>
       </header>
       {problem && (
@@ -153,13 +161,13 @@ export function FormPage() {
         </div>
       )}
       <nav className="tabs" role="tablist">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
             className={tab === t.id ? 'tab active' : 'tab'}
-            onClick={() => setParams(t.id === 'build' ? {} : { tab: t.id })}
+            onClick={() => setParams(t.id === tabs[0].id ? {} : { tab: t.id })}
           >
             {t.label}
             {t.id === 'submissions' && form.submissions > 0 && (
@@ -339,6 +347,7 @@ function Settings({
   onUnpublish: () => void
 }) {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [error, setError] = useState<ApiError | null>(null)
   const [saved, setSaved] = useState(false)
   const [exposed, setExposed] = useState(() => new Set(form.settings.exposedFields ?? []))
@@ -515,9 +524,13 @@ function Settings({
               Unpublish
             </button>
           )}
-          <button type="button" className="button danger" onClick={remove}>
-            Delete form
-          </button>
+          {can('admin') ? (
+            <button type="button" className="button danger" onClick={remove}>
+              Delete form
+            </button>
+          ) : (
+            <span className="muted small">Only admins can delete a form.</span>
+          )}
         </div>
       </section>
     </div>
@@ -583,6 +596,7 @@ interface Note {
 export function SubmissionPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const { can } = useAuth()
   const { data, error, loading, setData } = useLoad(
     () =>
       api<{
@@ -690,6 +704,7 @@ export function SubmissionPage() {
             <span className="muted small">Status</span>
             <select
               value={submission.status}
+              disabled={!can('reviewer')}
               onChange={(e) => void update({ status: e.target.value as Status }).catch(() => {})}
             >
               {STATUSES.map((s) => (
@@ -699,15 +714,19 @@ export function SubmissionPage() {
               ))}
             </select>
           </label>
-          <button className="button" onClick={() => setEditing(!editing)}>
-            {editing ? 'Cancel editing' : 'Edit answers'}
-          </button>
+          {can('editor') && (
+            <button className="button" onClick={() => setEditing(!editing)}>
+              {editing ? 'Cancel editing' : 'Edit answers'}
+            </button>
+          )}
           <button className="button" onClick={() => window.print()}>
             Print
           </button>
-          <button className="button danger" onClick={remove}>
-            Delete
-          </button>
+          {can('editor') && (
+            <button className="button danger" onClick={remove}>
+              Delete
+            </button>
+          )}
         </div>
       </header>
       {problem && (
@@ -766,7 +785,7 @@ export function SubmissionPage() {
         )}
         <section className="card stack side notes">
           <h2>Notes</h2>
-          {notes.length === 0 && <p className="muted">Notes are only visible to you.</p>}
+          {notes.length === 0 && <p className="muted">Notes are only visible to your team.</p>}
           {notes.map((n) => (
             <div className="note" key={n.id}>
               <div className="pre-wrap">{n.body}</div>
@@ -775,18 +794,20 @@ export function SubmissionPage() {
               </div>
             </div>
           ))}
-          <form className="stack" onSubmit={addNote}>
-            <textarea
-              name="body"
-              rows={3}
-              required
-              placeholder="Add a note"
-              aria-label="Add a note"
-            />
-            <div>
-              <button className="button">Add note</button>
-            </div>
-          </form>
+          {can('reviewer') && (
+            <form className="stack" onSubmit={addNote}>
+              <textarea
+                name="body"
+                rows={3}
+                required
+                placeholder="Add a note"
+                aria-label="Add a note"
+              />
+              <div>
+                <button className="button">Add note</button>
+              </div>
+            </form>
+          )}
         </section>
       </div>
     </>

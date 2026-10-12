@@ -6,10 +6,12 @@ import {
 } from '@formknit/core'
 import { eq } from 'drizzle-orm'
 import { hashPassword, newId } from '../src/auth'
-import { createDb, forms, submissions, users, versions, type FormSettings } from '../src/db'
+import { createDb, forms, members, submissions, users, versions, workspaces, type FormSettings } from '../src/db'
 
 export const DEMO_EMAIL = 'demo@formknit.test'
 export const DEMO_PASSWORD = 'formknit-demo-password'
+/** A second account in the same workspace with the reviewer role, for trying out permissions. Same password. */
+export const DEMO_REVIEWER_EMAIL = 'reviewer@formknit.test'
 
 const students = form('Student register', [
   text('rollNo').label('Roll number').required().width(4),
@@ -68,11 +70,17 @@ if (db.select({ id: users.id }).from(users).where(eq(users.email, DEMO_EMAIL)).g
 
 const ownerId = newId()
 db.insert(users).values({ id: ownerId, email: DEMO_EMAIL, name: 'Demo User', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() }).run()
+const workspaceId = newId()
+db.insert(workspaces).values({ id: workspaceId, name: 'Himalaya Institute', createdAt: Date.now() }).run()
+db.insert(members).values({ workspaceId, userId: ownerId, role: 'owner', createdAt: Date.now() }).run()
+const reviewerId = newId()
+db.insert(users).values({ id: reviewerId, email: DEMO_REVIEWER_EMAIL, name: 'Maya Reviewer', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() }).run()
+db.insert(members).values({ workspaceId, userId: reviewerId, role: 'reviewer', createdAt: Date.now() + 1 }).run()
 
 function addForm(name: string, slug: string, schema: FormSchema, settings: FormSettings, rows: Record<string, unknown>[]) {
   const id = newId()
   const now = Date.now()
-  db.insert(forms).values({ id, ownerId, name, slug, status: 'published', schema, publishedSchema: schema, publishedAt: now, settings, createdAt: now, updatedAt: now }).run()
+  db.insert(forms).values({ id, ownerId, workspaceId, name, slug, status: 'published', schema, publishedSchema: schema, publishedAt: now, settings, createdAt: now, updatedAt: now }).run()
   db.insert(versions).values({ id: newId(), formId: id, version: 1, schema, publishedAt: now }).run()
   rows.forEach((row, i) => {
     const result = validate(schema, row)
@@ -93,4 +101,4 @@ addForm('Admission form', 'admission', admission, { successMessage: 'Thank you. 
 ])
 addForm('Fee invoice', 'fee-invoice', invoice, {}, [])
 
-console.log(`Seeded. Sign in as ${DEMO_EMAIL} (the password is in apps/api/scripts/seed.ts).`)
+console.log(`Seeded. Sign in as ${DEMO_EMAIL} (owner) or ${DEMO_REVIEWER_EMAIL} (reviewer). The password is in apps/api/scripts/seed.ts.`)

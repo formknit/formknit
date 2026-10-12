@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError, CLOSED_TEXT, useLoad, when, type FormDetail, type FormSummary } from './api'
+import { useAuth } from './auth'
 
 export function StatusBadge({ form }: { form: Pick<FormSummary, 'status' | 'unpublishedChanges' | 'closedReason'> }) {
   if (form.status === 'draft') return <span className="badge">Draft</span>
@@ -14,6 +15,7 @@ export function StatusBadge({ form }: { form: Pick<FormSummary, 'status' | 'unpu
 
 export function FormsPage() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const { data, error, loading, reload } = useLoad(() => api<{ forms: FormSummary[] }>('/forms'), [])
   const templates = useLoad(() => api<{ templates: { id: string; name: string; description: string; fields: number }[] }>('/templates'), [])
   const [creating, setCreating] = useState(false)
@@ -61,7 +63,7 @@ export function FormsPage() {
             {forms.length} {forms.length === 1 ? 'form' : 'forms'} · {total} {total === 1 ? 'submission' : 'submissions'}
           </p>
         </div>
-        {!creating && (
+        {!creating && can('editor') && (
           <button className="button primary" onClick={() => setCreating(true)}>
             + New form
           </button>
@@ -100,7 +102,7 @@ export function FormsPage() {
       ) : forms.length === 0 ? (
         <div className="card empty">
           <h2>No forms yet</h2>
-          <p className="muted">Create your first form, design it by dragging fields, then share the link.</p>
+          <p className="muted">{can('editor') ? 'Create your first form, design it by dragging fields, then share the link.' : 'This workspace has no forms yet.'}</p>
         </div>
       ) : (
         <table className="table card">
@@ -128,13 +130,17 @@ export function FormsPage() {
                 <td>{form.submissions}</td>
                 <td>{when(form.updatedAt)}</td>
                 <td className="actions">
-                  <Link to={`/forms/${form.id}`}>Edit</Link>
-                  <button className="link" onClick={() => duplicate(form)}>
-                    Duplicate
-                  </button>
-                  <button className="link danger" onClick={() => remove(form)}>
-                    Delete
-                  </button>
+                  <Link to={`/forms/${form.id}`}>{can('editor') ? 'Edit' : 'Open'}</Link>
+                  {can('editor') && (
+                    <button className="link" onClick={() => duplicate(form)}>
+                      Duplicate
+                    </button>
+                  )}
+                  {can('admin') && (
+                    <button className="link danger" onClick={() => remove(form)}>
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

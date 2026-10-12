@@ -1,7 +1,8 @@
 import type { FormSchema } from '@formknit/core'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { ROLES } from './roles'
 
 /** Per-form options that are not part of the schema. */
 export interface FormSettings {
@@ -31,17 +32,51 @@ export const users = sqliteTable('users', {
   createdAt: integer('created_at').notNull(),
 })
 
+/** A team's space. Forms belong to a workspace, and people get access by being members of it. */
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at').notNull(),
+})
+
+export const members = sqliteTable(
+  'members',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id').notNull(),
+    role: text('role', { enum: ROLES }).notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
+)
+
+export const invites = sqliteTable('invites', {
+  /** SHA-256 of the token in the emailed link. */
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  email: text('email').notNull(),
+  role: text('role', { enum: ROLES }).notNull(),
+  invitedBy: text('invited_by').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  acceptedAt: integer('accepted_at'),
+  createdAt: integer('created_at').notNull(),
+})
+
 export const sessions = sqliteTable('sessions', {
   /** SHA-256 of the session token, so a leaked database does not leak usable sessions. */
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
+  /** The workspace this session is currently working in. */
+  workspaceId: text('workspace_id'),
   expiresAt: integer('expires_at').notNull(),
   createdAt: integer('created_at').notNull(),
 })
 
 export const forms = sqliteTable('forms', {
   id: text('id').primaryKey(),
+  /** Who created the form. Access is decided by the workspace, not by this. */
   ownerId: text('owner_id').notNull(),
+  workspaceId: text('workspace_id').notNull(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   status: text('status', { enum: ['draft', 'published'] }).notNull(),
@@ -124,6 +159,8 @@ export const apiKeys = sqliteTable('api_keys', {
   /** SHA-256 of the key. The key itself is shown once and never stored. */
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
+  /** The one workspace this key can read. */
+  workspaceId: text('workspace_id').notNull(),
   name: text('name').notNull(),
   /** The first characters, so the owner can tell keys apart. */
   prefix: text('prefix').notNull(),
@@ -198,6 +235,29 @@ const MIGRATIONS = [
      id TEXT PRIMARY KEY, form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
      name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL, created_at INTEGER NOT NULL
    );`,
+  // Teams. Every existing account gets a workspace of its own (with the same id as the user,
+  // which keeps this step plain SQL) and becomes its owner; its forms and keys move into it.
+  `CREATE TABLE workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+   CREATE TABLE members (
+     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     role TEXT NOT NULL, created_at INTEGER NOT NULL,
+     PRIMARY KEY (workspace_id, user_id)
+   );
+   CREATE INDEX members_user ON members(user_id);
+   CREATE TABLE invites (
+     id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+     email TEXT NOT NULL, role TEXT NOT NULL, invited_by TEXT NOT NULL,
+     expires_at INTEGER NOT NULL, accepted_at INTEGER, created_at INTEGER NOT NULL
+   );
+   INSERT INTO workspaces (id, name, created_at) SELECT id, name || '''s workspace', created_at FROM users;
+   INSERT INTO members (workspace_id, user_id, role, created_at) SELECT id, id, 'owner', created_at FROM users;
+   ALTER TABLE forms ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
+   UPDATE forms SET workspace_id = owner_id;
+   CREATE INDEX forms_workspace ON forms(workspace_id, updated_at);
+   ALTER TABLE sessions ADD COLUMN workspace_id TEXT;
+   ALTER TABLE api_keys ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
+   UPDATE api_keys SET workspace_id = user_id;`,
 ]
 
 export type Db = ReturnType<typeof createDb>
