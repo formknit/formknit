@@ -23,6 +23,9 @@
       ],
       "@formknit/builder/styles.css": [
         "../../packages/builder/src/styles.css"
+      ],
+      "@formknit/adapter-mui": [
+        "../../packages/adapter-mui/src/index.tsx"
       ]
     }
   },

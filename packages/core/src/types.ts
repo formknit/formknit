@@ -51,6 +51,8 @@ export interface ComponentSchema {
   components?: ComponentSchema[]
   /** Children of a `columns` layout. */
   columns?: ColumnSchema[]
+  /** Repeaters: show each row's fields side by side, like a table row. */
+  compact?: boolean
   /** Text for `content` components. */
   content?: string
   /** Custom field types may add their own settings. */

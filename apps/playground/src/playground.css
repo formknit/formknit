@@ -97,3 +97,11 @@ body {
   height: calc(100vh - 57px);
   padding: 12px;
 }
+
+.pg-grow {
+  flex: 1;
+}
+.pg-muted-label {
+  color: #667085;
+  font-size: 12px;
+}

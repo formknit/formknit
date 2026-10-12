@@ -27,17 +27,16 @@ export const invoice = form(
     ]),
     page('fees', 'Fees', [
       repeater('items', [
-        columns(
-          [text('name').label('Item').required()],
-          [number('qty').label('Qty').default(1).min(1)],
-          [number('rate').label('Rate').min(0)],
-          [calculated('amount', 'qty * rate').label('Amount')],
-        ),
+        text('name').label('Item').required(),
+        number('qty').label('Qty').default(1).min(1),
+        number('rate').label('Rate').min(0),
+        calculated('amount', 'qty * rate').label('Amount'),
       ])
         .label('Items')
+        .set({ compact: true })
         .description('Add each fee that applies. The total updates as you type.')
         .minItems(1)
-        .default([{ name: 'Tuition fee', qty: 1, rate: 9000 }]),
+        .default([{ name: 'Tuition fee', qty: 1, rate: 9000 }, { name: 'Lab fee', qty: 2, rate: 1500 }]),
       columns(
         [number('discount').label('Discount %').min(0).max(100)],
         [calculated('total', 'ROUND(SUM(items.amount) * (1 - discount / 100), 2)').label('Total (calculated)')],

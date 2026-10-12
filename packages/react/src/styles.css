@@ -188,6 +188,42 @@
   display: flex;
   gap: 4px;
 }
+/* Compact rows: fields side by side like a table, with labels shown on the first row only. */
+.fx-repeater-compact {
+  gap: 6px;
+}
+.fx-repeater-compact .fx-row {
+  align-items: flex-end;
+  padding: 0;
+  border: 0;
+}
+.fx-repeater-compact .fx-row-fields {
+  flex-direction: row;
+  gap: 8px;
+}
+.fx-repeater-compact .fx-row-fields > .fx-slot > .fx-field {
+  flex: 1 1 0;
+}
+/* Still read by screen readers, so every control keeps its name. */
+.fx-repeater-compact .fx-row:not(.fx-row-first) .fx-row-fields > .fx-slot > .fx-field > .fx-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.fx-repeater-compact .fx-row-actions {
+  padding-bottom: 4px;
+}
+@media (max-width: 560px) {
+  .fx-repeater-compact .fx-row-fields {
+    flex-wrap: wrap;
+  }
+  .fx-repeater-compact .fx-row-fields > .fx-slot > .fx-field {
+    flex-basis: 40%;
+  }
+}
 .fx-icon-button {
   width: 30px;
   height: 30px;

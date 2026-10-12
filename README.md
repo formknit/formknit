@@ -12,6 +12,7 @@ builder.
 |---|---|---|
 | `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
 | `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, swappable components, default skin |
+| `@formknit/adapter-mui` | Working | Renders forms with Material UI components and your MUI theme |
 | `@formknit/builder` | Working | Drag-and-drop form builder: palette, canvas, settings, rule and formula editors, pages, undo/redo, preview and JSON views |
 
 ## Quick look
@@ -37,7 +38,15 @@ const invoice = form('Fee invoice', [
 export const InvoiceForm = () => <Form schema={invoice} onSubmit={(data) => save(data)} />
 ```
 
-To render with another UI library, pass your own components for any field type:
+To render with Material UI, pass the adapter:
+
+```tsx
+import { muiAdapter } from '@formknit/adapter-mui'
+
+<Form schema={invoice} components={muiAdapter} />
+```
+
+For any other UI library, pass your own components for the field types you want to replace:
 
 ```tsx
 <Form schema={invoice} components={{ fields: { text: MyTextField, select: MySelect } }} />

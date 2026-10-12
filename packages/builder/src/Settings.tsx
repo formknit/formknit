@@ -1,5 +1,5 @@
 import { compile, ExprSyntaxError, functionNames, getField, type ComponentSchema, type FormSchema, type Option } from '@formknit/core'
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
 import { fromExpression, OPERATORS, toExpression, type Rule, type RuleSet } from './conditions'
 import { cx, useBuilder } from './context'
 import { settingsFor, type Setting, type SettingTab } from './meta'
@@ -33,12 +33,13 @@ function syntaxError(source: string): string | null {
 }
 
 /** A box for an expression, with a syntax check underneath. */
-function ExpressionInput(props: { id?: string; value: string; onChange: (value: string) => void; rows?: number; placeholder?: string }) {
+function ExpressionInput(props: { id?: string; value: string; onChange: (value: string) => void; rows?: number; placeholder?: string; inputRef?: Ref<HTMLTextAreaElement> }) {
   const error = syntaxError(props.value)
   return (
     <>
       <textarea
         id={props.id}
+        ref={props.inputRef}
         className={cx('fxb-input fxb-code', error && 'fxb-bad')}
         rows={props.rows ?? 2}
         value={props.value}
@@ -228,10 +229,30 @@ function RulesEditor({ value, fields, onChange }: { value: string; fields: Scope
 }
 
 function FormulaEditor({ id, value, fields, onChange }: { id: string; value: string; fields: ScopeField[]; onChange: (value: string) => void }) {
-  const insert = (text: string) => onChange(value.trim() && value.trim() !== '0' ? `${value.trimEnd()} ${text}` : text)
+  const box = useRef<HTMLTextAreaElement>(null)
+  const caret = useRef<number | null>(null)
+  // Puts the cursor back after the inserted text once React has written the new value.
+  useEffect(() => {
+    if (caret.current === null || !box.current) return
+    box.current.focus()
+    box.current.setSelectionRange(caret.current, caret.current)
+    caret.current = null
+  })
+  const insert = (text: string) => {
+    const el = box.current
+    // A new calculated field starts as "0"; replace that placeholder instead of adding to it.
+    if (!el || value.trim() === '0' || value.trim() === '') {
+      caret.current = text.endsWith('()') ? text.length - 1 : text.length
+      return onChange(text)
+    }
+    const start = el.selectionStart ?? value.length
+    const end = el.selectionEnd ?? value.length
+    caret.current = start + (text.endsWith('()') ? text.length - 1 : text.length)
+    onChange(value.slice(0, start) + text + value.slice(end))
+  }
   return (
     <>
-      <ExpressionInput id={id} value={value} onChange={onChange} rows={3} placeholder="qty * rate" />
+      <ExpressionInput id={id} inputRef={box} value={value} onChange={onChange} rows={3} placeholder="qty * rate" />
       {fields.length > 0 && (
         <>
           <div className="fxb-help">Insert a field</div>

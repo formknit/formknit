@@ -82,7 +82,7 @@ const registry = new Map<string, BuilderField>([
   ['radio', { defaults: twoOptions, settings: [OPTIONS] }],
   ['checkboxGroup', { defaults: twoOptions, settings: [OPTIONS, ...ITEMS] }],
   ['calculated', { defaults: () => ({ expression: '0' }), settings: [s('expression', 'Formula', 'formula', 'display')] }],
-  ['repeater', { defaults: () => ({ components: [] }), settings: ITEMS }],
+  ['repeater', { defaults: () => ({ components: [] }), settings: [s('compact', 'Compact rows, like a table', 'checkbox', 'display'), ...ITEMS] }],
   ['panel', { defaults: () => ({ components: [] }) }],
   ['columns', { defaults: () => ({ columns: [{ components: [] }, { components: [] }] }), settings: [s('columns', 'Columns', 'columns', 'display')] }],
   ['content', { defaults: () => ({ content: 'Text' }), settings: [s('content', 'Text', 'textarea', 'display'), s('heading', 'Show as a heading', 'checkbox', 'display')] }],

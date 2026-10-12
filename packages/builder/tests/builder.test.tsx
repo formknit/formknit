@@ -172,8 +172,12 @@ describe('<FormBuilder>', () => {
     await user.type(formula, ' 2')
     expect(settings().getByText('Formula is valid')).toBeTruthy()
     expect(screen.getByText('No problems')).toBeTruthy()
+    // Inserts at the cursor, which is left between the brackets ready for typing.
+    ;(formula as HTMLTextAreaElement).setSelectionRange(4, 5)
     await user.click(settings().getByRole('button', { name: 'SUM' }))
-    expect(latest().pages[0].components[1].expression).toBe('1 + 2 SUM()')
+    expect(latest().pages[0].components[1].expression).toBe('1 + SUM()')
+    await user.keyboard('2, 3')
+    expect(latest().pages[0].components[1].expression).toBe('1 + SUM(2, 3)')
   })
 
   it('manages pages', async () => {

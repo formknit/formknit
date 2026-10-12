@@ -8,9 +8,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0",
+    "@formknit/adapter-mui": "workspace:*",
     "@formknit/builder": "workspace:*",
     "@formknit/core": "workspace:*",
     "@formknit/react": "workspace:*",
+    "@mui/material": "^7.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

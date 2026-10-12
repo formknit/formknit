@@ -1,3 +1,4 @@
+import { muiAdapter } from '@formknit/adapter-mui'
 import { FormBuilder } from '@formknit/builder'
 import '@formknit/builder/styles.css'
 import { Form, useForm, useFormState } from '@formknit/react'
@@ -9,7 +10,7 @@ import './playground.css'
 
 type Name = keyof typeof examples
 
-function Example({ name }: { name: Name }) {
+function Example({ name, mui }: { name: Name; mui: boolean }) {
   const schema = examples[name]
   const [submitted, setSubmitted] = useState<unknown>(null)
   const form = useForm(schema, { onSubmit: (data) => setSubmitted(data) })
@@ -19,7 +20,7 @@ function Example({ name }: { name: Name }) {
     <div className="pg-body">
       <main className="pg-stage">
         <div className="pg-card">
-          <Form schema={schema} form={form} />
+          <Form schema={schema} form={form} components={mui ? muiAdapter : undefined} />
         </div>
       </main>
       <aside className="pg-side">
@@ -43,6 +44,7 @@ function Example({ name }: { name: Name }) {
 function App() {
   const names = Object.keys(examples) as Name[]
   const [tab, setTab] = useState<Name | 'Builder'>('Builder')
+  const [mui, setMui] = useState(false)
   return (
     <>
       <header className="pg-top">
@@ -54,13 +56,22 @@ function App() {
             </button>
           ))}
         </nav>
+        <span className="pg-grow" />
+        <span className="pg-muted-label">Components</span>
+        <nav className="pg-tabs">
+          {[false, true].map((on) => (
+            <button key={String(on)} className={on === mui ? 'pg-tab pg-active' : 'pg-tab'} onClick={() => setMui(on)}>
+              {on ? 'Material UI' : 'Default'}
+            </button>
+          ))}
+        </nav>
       </header>
       {tab === 'Builder' ? (
         <div className="pg-builder">
-          <FormBuilder defaultValue={examples['Admission form']} />
+          <FormBuilder defaultValue={examples['Admission form']} components={mui ? muiAdapter : undefined} />
         </div>
       ) : (
-        <Example key={tab} name={tab} />
+        <Example key={tab} name={tab} mui={mui} />
       )}
     </>
   )

@@ -275,7 +275,7 @@ const Divider = () => <hr className="fx-divider" />
 
 function Repeater(p: RepeaterProps) {
   return (
-    <fieldset className={cx('fx-field', 'fx-repeater', p.error && 'fx-invalid')}>
+    <fieldset className={cx('fx-field', 'fx-repeater', p.component.compact === true && 'fx-repeater-compact', p.error && 'fx-invalid')}>
       {p.label && (
         <legend className="fx-label">
           {p.label}
@@ -289,7 +289,7 @@ function Repeater(p: RepeaterProps) {
       )}
       {p.description && <div className="fx-description">{p.description}</div>}
       {p.rows.map((row) => (
-        <div className="fx-row" key={row.index}>
+        <div className={cx('fx-row', row.index === 0 && 'fx-row-first')} key={row.index}>
           <div className="fx-row-fields fx-stack">{row.children}</div>
           {!p.disabled && (
             <div className="fx-row-actions">
