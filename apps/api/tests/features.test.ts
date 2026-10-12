@@ -1,8 +1,9 @@
 import { calculated, checkbox, field, form, number, radio, rating, text, type FormSchema } from '@formknit/core'
 import { createHmac } from 'node:crypto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
-import { createDb, type Db } from '../src/db'
+import type { Db } from '../src/db'
+import { openTestDb, query } from './helpers'
 import { createMailer, memoryStorage, webhookUrlProblem, type Mail } from '../src/services'
 
 const ORIGIN = 'http://localhost:5175'
@@ -14,8 +15,8 @@ let calls: { url: string; headers: Record<string, string>; body: string }[]
 let hookStatus: number
 let storage: ReturnType<typeof memoryStorage>
 
-beforeEach(() => {
-  db = createDb(':memory:')
+beforeEach(async () => {
+  db = await openTestDb()
   sent = []
   calls = []
   hookStatus = 200
@@ -31,6 +32,7 @@ beforeEach(() => {
     }) as unknown as typeof fetch,
   })
 })
+afterEach(() => db.close())
 
 function client(ip = '10.0.0.1') {
   let cookie = ''
@@ -94,7 +96,7 @@ describe('password reset and account settings', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0]).toMatchObject({ to: 'sita@example.com', subject: 'Reset your Formknit password' })
     const token = sent[0].text.match(/reset\?token=([\w-]+)/)![1]
-    expect(JSON.stringify((db as any).$client.prepare('SELECT * FROM password_resets').all())).not.toContain(token)
+    expect(JSON.stringify(await query(db, 'SELECT * FROM password_resets'))).not.toContain(token)
 
     expect((await stranger.post('/api/auth/reset', { token, password: 'short' })).status).toBe(422)
     expect((await stranger.post('/api/auth/reset', { token: 'wrong', password: 'another-long-password' })).status).toBe(400)
@@ -111,7 +113,7 @@ describe('password reset and account settings', () => {
     await client().post('/api/auth/forgot', { email: 'sita@example.com' })
     await app.idle()
     const token = sent[0].text.match(/reset\?token=([\w-]+)/)![1]
-    ;(db as any).$client.prepare('UPDATE password_resets SET expires_at = 1').run()
+    await query(db, 'UPDATE password_resets SET expires_at = 1')
     expect((await client().post('/api/auth/reset', { token, password: 'another-long-password' })).status).toBe(400)
   })
 
@@ -137,7 +139,7 @@ describe('API keys', () => {
     const listed = (await c.get('/api/api-keys')).json.keys
     expect(listed).toHaveLength(1)
     expect(JSON.stringify(listed)).not.toContain(created.key)
-    expect(JSON.stringify((db as any).$client.prepare('SELECT * FROM api_keys').all())).not.toContain(created.key)
+    expect(JSON.stringify(await query(db, 'SELECT * FROM api_keys'))).not.toContain(created.key)
 
     const robot = client('10.0.0.7')
     const auth = { authorization: `Bearer ${created.key}` }
@@ -311,7 +313,7 @@ describe('email notifications and webhooks', () => {
     expect(sent[0].subject).toBe('New submission: Survey')
     expect(sent[0].text).toContain('Name: Sita')
     expect(sent[0].text).toContain(`${ORIGIN}/submissions/${id}`)
-    expect((db as any).$client.prepare('SELECT COUNT(*) n FROM outbox WHERE sent_at IS NOT NULL').get().n).toBe(2)
+    expect(Number((await query(db, 'SELECT COUNT(*) AS n FROM outbox WHERE sent_at IS NOT NULL'))[0].n)).toBe(2)
   })
 
   it('calls webhooks with a signature, records each delivery and reports failures', async () => {

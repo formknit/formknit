@@ -1,6 +1,6 @@
 import type { ComponentSchema, FormSchema, LookupQuery, LookupResolver } from '@formknit/core'
 import { and, asc, eq } from 'drizzle-orm'
-import { forms, submissions, type Db } from './db'
+import { first, forms, submissions, type Db } from './db'
 
 /** Every lookup field in a schema, wherever it is nested. */
 export function lookupFields(schema: FormSchema): ComponentSchema[] {
@@ -41,17 +41,17 @@ const text = (v: unknown) => (v === null || v === undefined ? '' : String(v))
  * on or returned.
  */
 export function makeLookup(db: Db, workspaceId: string): LookupResolver {
-  return (query) => {
+  return async (query) => {
     const [[field, value] = []] = Object.entries(query.where)
     if (!field) return null
-    const source = db.select().from(forms).where(and(eq(forms.workspaceId, workspaceId), eq(forms.slug, query.source))).get()
+    const source = await first(db.select().from(forms).where(and(eq(forms.workspaceId, workspaceId), eq(forms.slug, query.source))))
     if (!source) return null
     const exposed = new Set(source.settings.exposedFields ?? [])
     if (!exposed.has(field) || (query.select && !exposed.has(query.select))) return null
 
     // Matching is done here, not in SQL, so it behaves the same on every database. Fine for
     // thousands of rows; a large source will want an indexed column for the matched field.
-    const rows = db.select({ data: submissions.data }).from(submissions).where(eq(submissions.formId, source.id)).orderBy(asc(submissions.createdAt)).all()
+    const rows = await db.select({ data: submissions.data }).from(submissions).where(eq(submissions.formId, source.id)).orderBy(asc(submissions.createdAt))
     const matches = rows.filter((row) => text(row.data[field]) === text(value))
     const values = query.select ? matches.map((row) => row.data[query.select!]) : matches.map(() => 1)
     const numbers = values.map(Number).filter((n) => Number.isFinite(n))

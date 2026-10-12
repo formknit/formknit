@@ -6,7 +6,7 @@ import {
 } from '@formknit/core'
 import { eq } from 'drizzle-orm'
 import { hashPassword, newId } from '../src/auth'
-import { createDb, forms, members, submissions, users, versions, workspaces, type FormSettings } from '../src/db'
+import { createDb, first, forms, members, submissions, users, versions, workspaces, type FormSettings } from '../src/db'
 
 export const DEMO_EMAIL = 'demo@formknit.test'
 export const DEMO_PASSWORD = 'formknit-demo-password'
@@ -62,43 +62,43 @@ const invoice = form(
   { submitLabel: 'Create invoice' },
 )
 
-const db = createDb(process.env.DATABASE_PATH ?? 'formknit.sqlite')
-if (db.select({ id: users.id }).from(users).where(eq(users.email, DEMO_EMAIL)).get()) {
+const db = await createDb()
+if (await first(db.select({ id: users.id }).from(users).where(eq(users.email, DEMO_EMAIL)))) {
   console.log('The demo account already exists; nothing to do.')
   process.exit(0)
 }
 
 const ownerId = newId()
-db.insert(users).values({ id: ownerId, email: DEMO_EMAIL, name: 'Demo User', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() }).run()
+await db.insert(users).values({ id: ownerId, email: DEMO_EMAIL, name: 'Demo User', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() })
 const workspaceId = newId()
-db.insert(workspaces).values({ id: workspaceId, name: 'Himalaya Institute', createdAt: Date.now() }).run()
-db.insert(members).values({ workspaceId, userId: ownerId, role: 'owner', createdAt: Date.now() }).run()
+await db.insert(workspaces).values({ id: workspaceId, name: 'Himalaya Institute', createdAt: Date.now() })
+await db.insert(members).values({ workspaceId, userId: ownerId, role: 'owner', createdAt: Date.now() })
 const reviewerId = newId()
-db.insert(users).values({ id: reviewerId, email: DEMO_REVIEWER_EMAIL, name: 'Maya Reviewer', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() }).run()
-db.insert(members).values({ workspaceId, userId: reviewerId, role: 'reviewer', createdAt: Date.now() + 1 }).run()
+await db.insert(users).values({ id: reviewerId, email: DEMO_REVIEWER_EMAIL, name: 'Maya Reviewer', passwordHash: await hashPassword(DEMO_PASSWORD), createdAt: Date.now() })
+await db.insert(members).values({ workspaceId, userId: reviewerId, role: 'reviewer', createdAt: Date.now() + 1 })
 
-function addForm(name: string, slug: string, schema: FormSchema, settings: FormSettings, rows: Record<string, unknown>[]) {
+async function addForm(name: string, slug: string, schema: FormSchema, settings: FormSettings, rows: Record<string, unknown>[]) {
   const id = newId()
   const now = Date.now()
-  db.insert(forms).values({ id, ownerId, workspaceId, name, slug, status: 'published', schema, publishedSchema: schema, publishedAt: now, settings, createdAt: now, updatedAt: now }).run()
-  db.insert(versions).values({ id: newId(), formId: id, version: 1, schema, publishedAt: now }).run()
-  rows.forEach((row, i) => {
+  await db.insert(forms).values({ id, ownerId, workspaceId, name, slug, status: 'published', schema, publishedSchema: schema, publishedAt: now, settings, createdAt: now, updatedAt: now })
+  await db.insert(versions).values({ id: newId(), formId: id, version: 1, schema, publishedAt: now })
+  for (const [i, row] of rows.entries()) {
     const result = validate(schema, row)
     if (!result.valid) throw new Error(`Seed row ${i} for ${name} is invalid: ${JSON.stringify(result.errors)}`)
-    db.insert(submissions).values({ id: newId(), formId: id, data: result.data, createdAt: now - (rows.length - i) * 3600000 }).run()
-  })
+    await db.insert(submissions).values({ id: newId(), formId: id, data: result.data, createdAt: now - (rows.length - i) * 3600000 })
+  }
 }
 
-addForm('Student register', 'student-register', students, { exposedFields: ['rollNo', 'fullName', 'programme', 'paid'] }, [
+await addForm('Student register', 'student-register', students, { exposedFields: ['rollNo', 'fullName', 'programme', 'paid'] }, [
   { rollNo: '2027-0142', fullName: 'Sita Sharma', programme: 'bsc', phone: '9800000001', paid: 9000 },
   { rollNo: '2027-0142', fullName: 'Sita Sharma', programme: 'bsc', phone: '9800000001', paid: 3000 },
   { rollNo: '2027-0150', fullName: 'Arjun Thapa', programme: 'bba', phone: '9800000002', paid: 4500 },
 ])
-addForm('Admission form', 'admission', admission, { successMessage: 'Thank you. We have received your application.' }, [
+await addForm('Admission form', 'admission', admission, { successMessage: 'Thank you. We have received your application.' }, [
   { fullName: 'Priya Verma', email: 'priya@example.com', dateOfBirth: '2004-06-02', country: 'IN', programme: 'ba', agree: true },
   { fullName: 'Karma Dorji', email: 'karma@example.com', dateOfBirth: '2003-11-19', country: 'BT', programme: 'bsc', agree: true },
   { fullName: 'Anita Gurung', email: 'anita@example.com', dateOfBirth: '2005-01-30', country: 'NP', district: 'Kaski', programme: 'bba', agree: true },
 ])
-addForm('Fee invoice', 'fee-invoice', invoice, {}, [])
+await addForm('Fee invoice', 'fee-invoice', invoice, {}, [])
 
 console.log(`Seeded. Sign in as ${DEMO_EMAIL} (owner) or ${DEMO_REVIEWER_EMAIL} (reviewer). The password is in apps/api/scripts/seed.ts.`)

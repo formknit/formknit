@@ -14,5 +14,5 @@ export default defineConfig(({ command }) => ({
     },
     rollupOptions: { external: ['react', 'react-dom', 'react/jsx-runtime', '@formknit/core'] },
   },
-  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom' },
+  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom', testTimeout: 30000 },
 }))

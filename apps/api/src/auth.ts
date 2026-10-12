@@ -1,6 +1,6 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto'
-import { sessions, users, type Db } from './db'
+import { first, sessions, users, type Db } from './db'
 
 const SCRYPT = { N: 16384, r: 8, p: 1, keyLength: 64 }
 export const SESSION_DAYS = 30
@@ -29,31 +29,30 @@ export async function verifyPassword(password: string, stored: string): Promise<
 const tokenId = (token: string) => createHash('sha256').update(token).digest('hex')
 
 /** Returns the token to put in the cookie. Only its hash is stored. */
-export function createSession(db: Db, userId: string, workspaceId: string | null = null, now = Date.now()): string {
+export async function createSession(db: Db, userId: string, workspaceId: string | null = null, now = Date.now()): Promise<string> {
   const token = randomBytes(32).toString('base64url')
-  db.insert(sessions).values({ id: tokenId(token), userId, workspaceId, createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 }).run()
+  await db.insert(sessions).values({ id: tokenId(token), userId, workspaceId, createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 })
   // Tidy up while we are here; expired sessions are useless.
-  db.delete(sessions).where(lt(sessions.expiresAt, now)).run()
+  await db.delete(sessions).where(lt(sessions.expiresAt, now))
   return token
 }
 
-export function findSessionUser(db: Db, token: string | undefined, now = Date.now()) {
+export async function findSessionUser(db: Db, token: string | undefined, now = Date.now()) {
   if (!token) return undefined
-  return db
+  return await first(db
     .select({ id: users.id, email: users.email, name: users.name, workspaceId: sessions.workspaceId })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, tokenId(token)), gt(sessions.expiresAt, now)))
-    .get()
+    .where(and(eq(sessions.id, tokenId(token)), gt(sessions.expiresAt, now))))
 }
 
 /** Remembers which workspace a session is working in. */
-export function setSessionWorkspace(db: Db, token: string | undefined, workspaceId: string) {
-  if (token) db.update(sessions).set({ workspaceId }).where(eq(sessions.id, tokenId(token))).run()
+export async function setSessionWorkspace(db: Db, token: string | undefined, workspaceId: string) {
+  if (token) await db.update(sessions).set({ workspaceId }).where(eq(sessions.id, tokenId(token)))
 }
 
-export function deleteSession(db: Db, token: string | undefined) {
-  if (token) db.delete(sessions).where(eq(sessions.id, tokenId(token))).run()
+export async function deleteSession(db: Db, token: string | undefined) {
+  if (token) await db.delete(sessions).where(eq(sessions.id, tokenId(token)))
 }
 
 export const newId = () => randomUUID()

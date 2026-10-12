@@ -26,13 +26,13 @@ export type Transport = (mail: Mail) => Promise<void>
 export function createMailer(db: Db, transport?: Transport) {
   return async (mail: Mail): Promise<void> => {
     const id = newId()
-    db.insert(outbox).values({ id, toAddress: mail.to, subject: mail.subject, body: mail.text, createdAt: Date.now() }).run()
+    await db.insert(outbox).values({ id, toAddress: mail.to, subject: mail.subject, body: mail.text, createdAt: Date.now() })
     if (!transport) return
     try {
       await transport(mail)
-      db.update(outbox).set({ sentAt: Date.now() }).where(eq(outbox.id, id)).run()
+      await db.update(outbox).set({ sentAt: Date.now() }).where(eq(outbox.id, id))
     } catch (e) {
-      db.update(outbox).set({ error: e instanceof Error ? e.message : String(e) }).where(eq(outbox.id, id)).run()
+      await db.update(outbox).set({ error: e instanceof Error ? e.message : String(e) }).where(eq(outbox.id, id))
     }
   }
 }
@@ -88,7 +88,7 @@ export async function deliver(db: Db, fetcher: typeof fetch, hook: { id: string;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e)
   }
-  db.insert(deliveries).values({ id: newId(), webhookId: hook.id, event, ok, statusCode, error, createdAt: Date.now() }).run()
+  await db.insert(deliveries).values({ id: newId(), webhookId: hook.id, event, ok, statusCode, error, createdAt: Date.now() })
   return { ok, statusCode, error }
 }
 

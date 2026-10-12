@@ -1,0 +1,36 @@
+# Formknit with PostgreSQL. Copy .env.example to .env, set the values, then: docker compose up -d
+# For a small install without PostgreSQL, see "Deploying" in the README.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      # The address people open in their browser. Used for sign-in safety checks and emailed links.
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8787}
+      DATABASE_URL: postgres://formknit:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/formknit
+    volumes:
+      - uploads:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: formknit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: formknit
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formknit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  uploads:
+  database:

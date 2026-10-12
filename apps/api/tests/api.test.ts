@@ -1,16 +1,18 @@
 import { calculated, checkbox, form, lookup, number, select, text, type FormSchema } from '@formknit/core'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
-import { createDb, type Db } from '../src/db'
+import type { Db } from '../src/db'
+import { openTestDb, query } from './helpers'
 
 const ORIGIN = 'http://localhost:5175'
 let db: Db
 let app: ReturnType<typeof createApp>
 
-beforeEach(() => {
-  db = createDb(':memory:')
+beforeEach(async () => {
+  db = await openTestDb()
   app = createApp({ db, webOrigins: [ORIGIN] })
 })
+afterEach(() => db.close())
 
 /** A browser-like client that keeps its session cookie. */
 function client(ip = '10.0.0.1') {
@@ -95,7 +97,7 @@ describe('accounts', () => {
 
   it('stores neither the password nor the session token in plain form', async () => {
     const c = await signedIn()
-    const dump = JSON.stringify((db as any).$client.prepare('SELECT * FROM users').all()) + JSON.stringify((db as any).$client.prepare('SELECT * FROM sessions').all())
+    const dump = JSON.stringify(await query(db, 'SELECT * FROM users')) + JSON.stringify(await query(db, 'SELECT * FROM sessions'))
     expect(dump).not.toContain(PASSWORD)
     expect(dump).not.toContain(c.cookie.split('=')[1])
     expect(dump).toContain('scrypt$')
@@ -113,7 +115,7 @@ describe('accounts', () => {
     c.setCookie('fk_session=made-up-token')
     expect((await c.get('/api/forms')).status).toBe(401)
     const real = await signedIn('b@example.com')
-    ;(db as any).$client.prepare('UPDATE sessions SET expires_at = 1').run()
+    await query(db, 'UPDATE sessions SET expires_at = 1')
     expect((await real.get('/api/forms')).status).toBe(401)
   })
 

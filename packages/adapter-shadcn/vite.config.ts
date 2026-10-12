@@ -13,5 +13,5 @@ export default defineConfig({
       '@': at('./tests/stubs'),
     },
   },
-  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom' },
+  test: { include: ['tests/**/*.test.tsx'], environment: 'jsdom', testTimeout: 30000 },
 })

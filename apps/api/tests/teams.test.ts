@@ -1,7 +1,8 @@
 import { form, text } from '@formknit/core'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
-import { createDb, type Db } from '../src/db'
+import { createDb, POSTGRES, type Db } from '../src/db'
+import { openTestDb, query } from './helpers'
 import { createMailer, type Mail } from '../src/services'
 
 const ORIGIN = 'http://localhost:5175'
@@ -10,11 +11,12 @@ let db: Db
 let app: ReturnType<typeof createApp>
 let sent: Mail[]
 
-beforeEach(() => {
-  db = createDb(':memory:')
+beforeEach(async () => {
+  db = await openTestDb()
   sent = []
   app = createApp({ db, webOrigins: [ORIGIN], mailer: createMailer(db, async (mail) => void sent.push(mail)) })
 })
+afterEach(() => db.close())
 
 function client() {
   let cookie = ''
@@ -104,7 +106,7 @@ describe('invitations', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0]).toMatchObject({ to: maya.email, subject: "Owner invited you to Owner's workspace on Formknit" })
     const token = sent[0].text.match(/invite\?token=([\w-]+)/)![1]
-    expect(JSON.stringify((db as any).$client.prepare('SELECT * FROM invites').all())).not.toContain(token)
+    expect(JSON.stringify(await query(db, 'SELECT * FROM invites'))).not.toContain(token)
 
     expect(await (await app.request(`/api/auth/invite?token=${token}`)).json()).toEqual({ workspace: "Owner's workspace", email: maya.email, role: 'editor' })
     expect((await app.request('/api/auth/invite?token=wrong')).status).toBe(404)
@@ -143,7 +145,7 @@ describe('invitations', () => {
     await owner.post('/api/workspace/invites', { email: maya.email, role: 'editor' })
     await app.idle()
     const third = sent[2].text.match(/invite\?token=([\w-]+)/)![1]
-    ;(db as any).$client.prepare('UPDATE invites SET expires_at = 1').run()
+    await query(db, 'UPDATE invites SET expires_at = 1')
     expect((await maya.post('/api/invites/accept', { token: third })).status).toBe(404)
   })
 })
@@ -286,7 +288,8 @@ describe('roles', () => {
   })
 })
 
-describe('upgrading an existing database', () => {
+// PostgreSQL support began after teams, so there is no older PostgreSQL database to upgrade.
+describe.skipIf(POSTGRES)('upgrading an existing database', () => {
   it('moves each account and its forms into a workspace of its own', async () => {
     // Build a database as it was before teams existed, then open it with the current code.
     const { default: Database } = await import('better-sqlite3')
@@ -294,8 +297,8 @@ describe('upgrading an existing database', () => {
     const { tmpdir } = await import('node:os')
     const { join: joinPath } = await import('node:path')
     const path = joinPath(mkdtempSync(joinPath(tmpdir(), 'formknit-')), 'old.sqlite')
-    const fresh = createDb(path)
-    fresh.close()
+    const fresh = await createDb(path)
+    await fresh.close()
     const raw = new Database(path)
     // Undo the teams step by hand: drop its tables and columns, and mark it as not run.
     raw.exec(`DROP TABLE members; DROP TABLE invites; DROP TABLE workspaces; DROP INDEX forms_workspace;
@@ -306,7 +309,7 @@ describe('upgrading an existing database', () => {
       INSERT INTO api_keys VALUES ('k1', 'u1', 'Key', 'fk_abc', 1, NULL);`)
     raw.close()
 
-    const upgraded = createDb(path)
+    const upgraded = await createDb(path)
     const all = (sql: string) => (upgraded as any).$client.prepare(sql).all()
     expect(all('SELECT id, name FROM workspaces ORDER BY id')).toEqual([{ id: 'u1', name: "Old User's workspace" }, { id: 'u2', name: "Two's workspace" }])
     expect(all('SELECT workspace_id, user_id, role FROM members ORDER BY user_id')).toEqual([
@@ -315,6 +318,6 @@ describe('upgrading an existing database', () => {
     ])
     expect(all('SELECT workspace_id FROM forms')).toEqual([{ workspace_id: 'u1' }])
     expect(all('SELECT workspace_id FROM api_keys')).toEqual([{ workspace_id: 'u1' }])
-    upgraded.close()
+    await upgraded.close()
   })
 })

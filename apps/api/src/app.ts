@@ -9,7 +9,7 @@ import {
 } from './auth'
 import { columnsOf, toCsv } from './csv'
 import {
-  apiKeys, deliveries, files, forms, invites, members, notes, passwordResets, sessions, STATUSES, submissions, users, versions,
+  apiKeys, deliveries, files, first, forms, invites, members, notes, passwordResets, sessions, STATUSES, submissions, users, versions,
   webhooks, workspaces, type Db, type FormSettings, type Status,
 } from './db'
 import { atLeast, isRole, NEEDS, rank, type Role } from './roles'
@@ -121,34 +121,33 @@ export function createApp(options: AppOptions) {
     return next()
   })
 
-  const createWorkspace = (userId: string, name: string) => {
+  const createWorkspace = async (userId: string, name: string) => {
     const id = newId()
     const now = Date.now()
-    db.insert(workspaces).values({ id, name: name.slice(0, 80), createdAt: now }).run()
-    db.insert(members).values({ workspaceId: id, userId, role: 'owner', createdAt: now }).run()
+    await db.insert(workspaces).values({ id, name: name.slice(0, 80), createdAt: now })
+    await db.insert(members).values({ workspaceId: id, userId, role: 'owner', createdAt: now })
     return id
   }
-  const membershipsOf = (userId: string): Workspace[] =>
-    db
+  const membershipsOf = async (userId: string): Promise<Workspace[]> =>
+    await db
       .select({ id: workspaces.id, name: workspaces.name, role: members.role })
       .from(members)
       .innerJoin(workspaces, eq(workspaces.id, members.workspaceId))
       .where(eq(members.userId, userId))
       .orderBy(asc(members.createdAt))
-      .all()
   /** The workspace a person is working in: the one their session remembers if they still belong to it. */
-  const currentWorkspace = (userId: string, preferred: string | null | undefined, userName: string) => {
-    let list = membershipsOf(userId)
+  const currentWorkspace = async (userId: string, preferred: string | null | undefined, userName: string) => {
+    let list = await membershipsOf(userId)
     // Someone removed from every team still needs somewhere to work.
     if (!list.length) {
-      createWorkspace(userId, `${userName}'s workspace`)
-      list = membershipsOf(userId)
+      await createWorkspace(userId, `${userName}'s workspace`)
+      list = await membershipsOf(userId)
     }
     return { ws: list.find((w) => w.id === preferred) ?? list[0], list }
   }
 
-  const startSession = (c: Context, userId: string, workspaceId: string | null = null) =>
-    setCookie(c, SESSION_COOKIE, createSession(db, userId, workspaceId), {
+  const startSession = async (c: Context, userId: string, workspaceId: string | null = null) =>
+    setCookie(c, SESSION_COOKIE, await createSession(db, userId, workspaceId), {
       httpOnly: true,
       sameSite: 'Lax',
       secure: secureCookies,
@@ -168,12 +167,12 @@ export function createApp(options: AppOptions) {
     const weak = checkPassword(password)
     if (weak) fields.password = [weak]
     if (Object.keys(fields).length) throw new ApiError(422, 'invalid', 'Please check the details', fields)
-    if (db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()) {
+    if (await first(db.select({ id: users.id }).from(users).where(eq(users.email, email)))) {
       throw new ApiError(409, 'email_taken', 'An account with this email already exists', { email: ['An account with this email already exists'] })
     }
     const user = { id: newId(), email, name }
-    db.insert(users).values({ ...user, passwordHash: await hashPassword(password), createdAt: Date.now() }).run()
-    startSession(c, user.id, createWorkspace(user.id, `${name}'s workspace`))
+    await db.insert(users).values({ ...user, passwordHash: await hashPassword(password), createdAt: Date.now() })
+    await startSession(c, user.id, await createWorkspace(user.id, `${name}'s workspace`))
     return c.json({ user }, 201)
   })
 
@@ -182,33 +181,33 @@ export function createApp(options: AppOptions) {
     const email = str(input.email).toLowerCase()
     const password = typeof input.password === 'string' ? input.password : ''
     if (!loginLimit(`${email}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many attempts. Try again in a few minutes')
-    const row = db.select().from(users).where(eq(users.email, email)).get()
+    const row = await first(db.select().from(users).where(eq(users.email, email)))
     // Hash even when the account does not exist, so the response time does not reveal which emails are registered.
     const ok = await verifyPassword(password, row?.passwordHash ?? 'scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA')
     if (!row || !ok) throw new ApiError(401, 'bad_login', 'The email or password is not correct')
-    startSession(c, row.id)
+    await startSession(c, row.id)
     return c.json({ user: { id: row.id, email: row.email, name: row.name } })
   })
 
-  app.post('/api/auth/logout', (c) => {
-    deleteSession(db, getCookie(c, SESSION_COOKIE))
+  app.post('/api/auth/logout', async (c) => {
+    await deleteSession(db, getCookie(c, SESSION_COOKIE))
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
     return c.json({ ok: true })
   })
 
-  app.get('/api/auth/me', (c) => {
-    const found = findSessionUser(db, getCookie(c, SESSION_COOKIE))
+  app.get('/api/auth/me', async (c) => {
+    const found = await findSessionUser(db, getCookie(c, SESSION_COOKIE))
     if (!found) return c.json({ user: null })
     const { workspaceId, ...user } = found
-    const { ws, list } = currentWorkspace(user.id, workspaceId, user.name)
+    const { ws, list } = await currentWorkspace(user.id, workspaceId, user.name)
     return c.json({ user, workspace: ws, workspaces: list })
   })
 
   // Lets the invite page say what the invitation is before the person signs in.
-  app.get('/api/auth/invite', (c) => {
-    const invite = db.select().from(invites).where(and(eq(invites.id, sha256(c.req.query('token') ?? '')), gt(invites.expiresAt, Date.now()))).get()
+  app.get('/api/auth/invite', async (c) => {
+    const invite = await first(db.select().from(invites).where(and(eq(invites.id, sha256(c.req.query('token') ?? '')), gt(invites.expiresAt, Date.now()))))
     if (!invite || invite.acceptedAt) throw new ApiError(404, 'bad_invite', 'This invitation is not valid any more. Ask for a new one')
-    const ws = db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, invite.workspaceId)).get()
+    const ws = await first(db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, invite.workspaceId)))
     return c.json({ workspace: ws?.name ?? '', email: invite.email, role: invite.role })
   })
 
@@ -216,10 +215,10 @@ export function createApp(options: AppOptions) {
   app.post('/api/auth/forgot', async (c) => {
     const email = str((await body(c)).email).toLowerCase()
     if (!resetLimit(`${email}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many attempts. Try again in a few minutes')
-    const user = db.select().from(users).where(eq(users.email, email)).get()
+    const user = await first(db.select().from(users).where(eq(users.email, email)))
     if (user) {
       const token = randomToken()
-      db.insert(passwordResets).values({ id: sha256(token), userId: user.id, expiresAt: Date.now() + 3600000 }).run()
+      await db.insert(passwordResets).values({ id: sha256(token), userId: user.id, expiresAt: Date.now() + 3600000 })
       background(
         mail({
           to: user.email,
@@ -237,41 +236,41 @@ export function createApp(options: AppOptions) {
     const weak = checkPassword(password)
     if (weak) throw new ApiError(422, 'invalid', 'Please check the details', { password: [weak] })
     const id = sha256(str(input.token))
-    const reset = db.select().from(passwordResets).where(and(eq(passwordResets.id, id), gt(passwordResets.expiresAt, Date.now()))).get()
+    const reset = await first(db.select().from(passwordResets).where(and(eq(passwordResets.id, id), gt(passwordResets.expiresAt, Date.now()))))
     if (!reset || reset.usedAt) throw new ApiError(400, 'bad_token', 'This reset link is not valid any more. Ask for a new one')
-    db.update(passwordResets).set({ usedAt: Date.now() }).where(eq(passwordResets.id, id)).run()
-    db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, reset.userId)).run()
+    await db.update(passwordResets).set({ usedAt: Date.now() }).where(eq(passwordResets.id, id))
+    await db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, reset.userId))
     // Whoever knew the old password is signed out everywhere.
-    db.delete(sessions).where(eq(sessions.userId, reset.userId)).run()
+    await db.delete(sessions).where(eq(sessions.userId, reset.userId))
     return c.json({ ok: true })
   })
 
   // ---------- Public: what respondents use ----------
-  const publicForm = (slug: string) => {
-    const form = db.select().from(forms).where(and(eq(forms.slug, slug), eq(forms.status, 'published'))).get()
+  const publicForm = async (slug: string) => {
+    const form = await first(db.select().from(forms).where(and(eq(forms.slug, slug), eq(forms.status, 'published'))))
     if (!form?.publishedSchema) throw new ApiError(404, 'not_found', 'This form does not exist or is not published')
     return { ...form, publishedSchema: form.publishedSchema }
   }
-  const submissionCount = (formId: string) => db.select({ n: count() }).from(submissions).where(eq(submissions.formId, formId)).get()?.n ?? 0
+  const submissionCount = async (formId: string) => (await first(db.select({ n: count() }).from(submissions).where(eq(submissions.formId, formId))))?.n ?? 0
 
   /** Why a form is not taking responses right now, or null if it is. */
-  const closedReason = (form: { id: string; settings: FormSettings }, now = Date.now()): 'closed' | 'not_open' | 'ended' | 'full' | null => {
+  const closedReason = async (form: { id: string; settings: FormSettings }, now = Date.now()): Promise<'closed' | 'not_open' | 'ended' | 'full' | null> => {
     const s = form.settings
     if (s.closed) return 'closed'
     if (s.opensAt && now < Date.parse(s.opensAt)) return 'not_open'
     if (s.closesAt && now >= Date.parse(s.closesAt)) return 'ended'
-    if (s.maxSubmissions && submissionCount(form.id) >= s.maxSubmissions) return 'full'
+    if (s.maxSubmissions && await submissionCount(form.id) >= s.maxSubmissions) return 'full'
     return null
   }
 
-  app.get('/api/public/forms/:slug', (c) => {
-    const form = publicForm(c.req.param('slug'))
-    const reason = closedReason(form)
+  app.get('/api/public/forms/:slug', async (c) => {
+    const form = await publicForm(c.req.param('slug'))
+    const reason = await closedReason(form)
     return c.json({ name: form.name, slug: form.slug, schema: form.publishedSchema, closed: reason !== null, reason, opensAt: form.settings.opensAt ?? null })
   })
 
   app.post('/api/public/forms/:slug/lookup', async (c) => {
-    const form = publicForm(c.req.param('slug'))
+    const form = await publicForm(c.req.param('slug'))
     if (!lookupLimit(`${form.id}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many requests. Try again shortly')
     const query = (await body(c)) as unknown as LookupQuery
     if (!isObject(query.where) || typeof query.source !== 'string' || !schemaAllows(form.publishedSchema, query)) {
@@ -282,9 +281,9 @@ export function createApp(options: AppOptions) {
 
   // Uploads are accepted only for a file field the form really has, within that field's own limits.
   app.post('/api/public/forms/:slug/files', async (c) => {
-    const form = publicForm(c.req.param('slug'))
+    const form = await publicForm(c.req.param('slug'))
     if (!uploadLimit(`${form.id}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many uploads. Try again in a minute')
-    if (closedReason(form)) throw new ApiError(403, 'closed', 'This form is not accepting responses')
+    if (await closedReason(form)) throw new ApiError(403, 'closed', 'This form is not accepting responses')
     if (Number(c.req.header('content-length') ?? 0) > MAX_FILE + 4096) throw new ApiError(413, 'too_large', 'The file is too large')
     const field = findField(form.publishedSchema, c.req.query('field') ?? '')
     if (field?.type !== 'file') throw new ApiError(400, 'no_field', 'This form has no such file field')
@@ -303,13 +302,13 @@ export function createApp(options: AppOptions) {
     const id = newId()
     await storage.save(id, new Uint8Array(await upload.arrayBuffer()))
     const name = upload.name.replace(/[\\/\0-\x1f]/g, '_').slice(0, 200) || 'file'
-    db.insert(files).values({ id, formId: form.id, name, size: upload.size, type: upload.type.slice(0, 100) || 'application/octet-stream', createdAt: Date.now() }).run()
+    await db.insert(files).values({ id, formId: form.id, name, size: upload.size, type: upload.type.slice(0, 100) || 'application/octet-stream', createdAt: Date.now() })
     return c.json({ id, name, size: upload.size, type: upload.type, url: `/api/files/${id}` }, 201)
   })
 
   /** Tells the form's owner and any webhooks about something that happened to a submission. */
-  const announce = (form: typeof forms.$inferSelect, event: string, submission: { id: string; status: Status; createdAt: number; data: Record<string, unknown> }) => {
-    const hooks = db.select().from(webhooks).where(and(eq(webhooks.formId, form.id), eq(webhooks.active, true))).all()
+  const announce = async (form: typeof forms.$inferSelect, event: string, submission: { id: string; status: Status; createdAt: number; data: Record<string, unknown> }) => {
+    const hooks = await db.select().from(webhooks).where(and(eq(webhooks.formId, form.id), eq(webhooks.active, true)))
     for (const hook of hooks) background(deliver(db, fetcher, hook, event, { form: { id: form.id, name: form.name, slug: form.slug }, submission }))
     if (event !== 'submission.created') return
     const lines = columnsOf(form.publishedSchema ?? form.schema).map((col) => {
@@ -322,39 +321,39 @@ export function createApp(options: AppOptions) {
   }
 
   app.post('/api/public/forms/:slug/submissions', async (c) => {
-    const form = publicForm(c.req.param('slug'))
+    const form = await publicForm(c.req.param('slug'))
     if (!submitLimit(`${form.id}|${clientOf(c)}`)) throw new ApiError(429, 'too_many', 'Too many submissions. Try again in a minute')
-    if (closedReason(form)) throw new ApiError(403, 'closed', 'This form is not accepting responses')
+    if (await closedReason(form)) throw new ApiError(403, 'closed', 'This form is not accepting responses')
     // Lookups are fetched again here and formulas recalculated, so nothing the browser sent is trusted.
     const result = await validateAsync(form.publishedSchema, await body(c), { lookup: makeLookup(db, form.workspaceId) })
     if (!result.valid) throw new ApiError(422, 'invalid', 'Some answers need attention', result.errors)
     const row = { id: newId(), formId: form.id, data: result.data, status: 'new' as const, createdAt: Date.now() }
-    db.insert(submissions).values(row).run()
-    announce(form, 'submission.created', row)
+    await db.insert(submissions).values(row)
+    await announce(form, 'submission.created', row)
     return c.json({ id: row.id, message: form.settings.successMessage || 'Thank you. Your response has been recorded.' }, 201)
   })
 
   // ---------- Signed-in only from here ----------
   const signedIn = new Hono<Env>()
   signedIn.use('*', async (c, next) => {
-    const found = findSessionUser(db, getCookie(c, SESSION_COOKIE))
+    const found = await findSessionUser(db, getCookie(c, SESSION_COOKIE))
     const bearer = c.req.header('authorization')?.match(/^Bearer (fk_[A-Za-z0-9_-]+)$/)?.[1]
     if (found) {
       const { workspaceId, ...user } = found
       c.set('user', user)
       c.set('viaKey', false)
-      c.set('ws', currentWorkspace(user.id, workspaceId, user.name).ws)
+      c.set('ws', (await currentWorkspace(user.id, workspaceId, user.name)).ws)
       return next()
     }
     if (bearer) {
       // API keys can read one workspace and change nothing.
       if (c.req.method !== 'GET') throw new ApiError(403, 'read_only', 'API keys can only read data')
-      const key = db.select().from(apiKeys).where(eq(apiKeys.id, sha256(bearer))).get()
-      const user = key && db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, key.userId)).get()
+      const key = await first(db.select().from(apiKeys).where(eq(apiKeys.id, sha256(bearer))))
+      const user = key && await first(db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, key.userId)))
       // The key stops working if its creator has left the workspace.
-      const ws = user && membershipsOf(user.id).find((w) => w.id === key.workspaceId)
+      const ws = user && (await membershipsOf(user.id)).find((w) => w.id === key.workspaceId)
       if (key && user && ws) {
-        db.update(apiKeys).set({ lastUsedAt: Date.now() }).where(eq(apiKeys.id, key.id)).run()
+        await db.update(apiKeys).set({ lastUsedAt: Date.now() }).where(eq(apiKeys.id, key.id))
         c.set('user', user)
         c.set('viaKey', true)
         c.set('ws', { ...ws, role: 'viewer' })
@@ -376,7 +375,7 @@ export function createApp(options: AppOptions) {
     sessionOnly(c)
     const name = str((await body(c)).name)
     if (!name) throw new ApiError(422, 'invalid', 'Please check the details', { name: ['Enter your name'] })
-    db.update(users).set({ name: name.slice(0, 120) }).where(eq(users.id, c.get('user').id)).run()
+    await db.update(users).set({ name: name.slice(0, 120) }).where(eq(users.id, c.get('user').id))
     return c.json({ user: { ...c.get('user'), name: name.slice(0, 120) } })
   })
 
@@ -384,16 +383,16 @@ export function createApp(options: AppOptions) {
     sessionOnly(c)
     const input = await body(c)
     const next = typeof input.newPassword === 'string' ? input.newPassword : ''
-    const row = db.select().from(users).where(eq(users.id, c.get('user').id)).get()!
+    const row = (await first(db.select().from(users).where(eq(users.id, c.get('user').id))))!
     if (!(await verifyPassword(typeof input.currentPassword === 'string' ? input.currentPassword : '', row.passwordHash))) {
       throw new ApiError(422, 'invalid', 'Please check the details', { currentPassword: ['That is not your current password'] })
     }
     const weak = checkPassword(next)
     if (weak) throw new ApiError(422, 'invalid', 'Please check the details', { newPassword: [weak] })
-    db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, row.id)).run()
+    await db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, row.id))
     // Sign out every other device, and give this one a fresh session.
-    db.delete(sessions).where(eq(sessions.userId, row.id)).run()
-    startSession(c, row.id, c.get('ws').id)
+    await db.delete(sessions).where(eq(sessions.userId, row.id))
+    await startSession(c, row.id, c.get('ws').id)
     return c.json({ ok: true })
   })
 
@@ -402,17 +401,17 @@ export function createApp(options: AppOptions) {
     sessionOnly(c)
     const name = str((await body(c)).name)
     if (!name) throw new ApiError(422, 'invalid', 'Please check the details', { name: ['Enter a name'] })
-    const id = createWorkspace(c.get('user').id, name)
-    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), id)
+    const id = await createWorkspace(c.get('user').id, name)
+    await setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), id)
     return c.json({ workspace: { id, name: name.slice(0, 80), role: 'owner' } }, 201)
   })
 
   signedIn.post('/workspaces/switch', async (c) => {
     sessionOnly(c)
     const wanted = str((await body(c)).id)
-    const ws = membershipsOf(c.get('user').id).find((w) => w.id === wanted)
+    const ws = (await membershipsOf(c.get('user').id)).find((w) => w.id === wanted)
     if (!ws) throw new ApiError(404, 'not_found', 'You are not a member of that workspace')
-    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), ws.id)
+    await setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), ws.id)
     return c.json({ workspace: ws })
   })
 
@@ -421,28 +420,27 @@ export function createApp(options: AppOptions) {
     need(c, 'own')
     const name = str((await body(c)).name)
     if (!name) throw new ApiError(422, 'invalid', 'Please check the details', { name: ['Enter a name'] })
-    db.update(workspaces).set({ name: name.slice(0, 80) }).where(eq(workspaces.id, c.get('ws').id)).run()
+    await db.update(workspaces).set({ name: name.slice(0, 80) }).where(eq(workspaces.id, c.get('ws').id))
     return c.json({ workspace: { ...c.get('ws'), name: name.slice(0, 80) } })
   })
 
-  signedIn.get('/workspace/members', (c) => {
+  signedIn.get('/workspace/members', async (c) => {
     sessionOnly(c)
     const ws = c.get('ws')
-    const people = db
+    const people = await db
       .select({ id: users.id, name: users.name, email: users.email, role: members.role, joinedAt: members.createdAt })
       .from(members)
       .innerJoin(users, eq(users.id, members.userId))
       .where(eq(members.workspaceId, ws.id))
       .orderBy(asc(members.createdAt))
-      .all()
     // Only people who can manage the team see who has been invited.
     const pending = atLeast(ws.role, 'admin')
-      ? db
-          .select({ id: invites.id, email: invites.email, role: invites.role, expiresAt: invites.expiresAt, createdAt: invites.createdAt })
-          .from(invites)
-          .where(and(eq(invites.workspaceId, ws.id), gt(invites.expiresAt, Date.now())))
-          .all()
-          .filter((i) => !people.some((p) => p.email === i.email))
+      ? (
+          await db
+            .select({ id: invites.id, email: invites.email, role: invites.role, expiresAt: invites.expiresAt, createdAt: invites.createdAt })
+            .from(invites)
+            .where(and(eq(invites.workspaceId, ws.id), gt(invites.expiresAt, Date.now())))
+        ).filter((i) => !people.some((p) => p.email === i.email))
       : []
     return c.json({ members: people, invites: pending })
   })
@@ -459,13 +457,13 @@ export function createApp(options: AppOptions) {
     const role = input.role
     if (!EMAIL.test(email)) throw new ApiError(422, 'invalid', 'Please check the details', { email: ['Enter a valid email address'] })
     if (!isRole(role) || !mayGrant(ws.role, role)) throw new ApiError(422, 'invalid', 'Please check the details', { role: ['You cannot give that role'] })
-    const existing = db.select({ id: users.id }).from(users).innerJoin(members, eq(members.userId, users.id)).where(and(eq(users.email, email), eq(members.workspaceId, ws.id))).get()
+    const existing = await first(db.select({ id: users.id }).from(users).innerJoin(members, eq(members.userId, users.id)).where(and(eq(users.email, email), eq(members.workspaceId, ws.id))))
     if (existing) throw new ApiError(409, 'already_member', 'That person is already a member', { email: ['That person is already a member'] })
     // A new invitation replaces any earlier one to the same address.
-    db.delete(invites).where(and(eq(invites.workspaceId, ws.id), eq(invites.email, email))).run()
+    await db.delete(invites).where(and(eq(invites.workspaceId, ws.id), eq(invites.email, email)))
     const token = randomToken()
     const now = Date.now()
-    db.insert(invites).values({ id: sha256(token), workspaceId: ws.id, email, role, invitedBy: c.get('user').id, expiresAt: now + 7 * DAY, createdAt: now }).run()
+    await db.insert(invites).values({ id: sha256(token), workspaceId: ws.id, email, role, invitedBy: c.get('user').id, expiresAt: now + 7 * DAY, createdAt: now })
     background(
       mail({
         to: email,
@@ -476,10 +474,10 @@ export function createApp(options: AppOptions) {
     return c.json({ ok: true }, 201)
   })
 
-  signedIn.delete('/workspace/invites/:inviteId', (c) => {
+  signedIn.delete('/workspace/invites/:inviteId', async (c) => {
     sessionOnly(c)
     need(c, 'manage')
-    db.delete(invites).where(and(eq(invites.id, c.req.param('inviteId')), eq(invites.workspaceId, c.get('ws').id))).run()
+    await db.delete(invites).where(and(eq(invites.id, c.req.param('inviteId')), eq(invites.workspaceId, c.get('ws').id)))
     return c.json({ ok: true })
   })
 
@@ -487,19 +485,19 @@ export function createApp(options: AppOptions) {
   signedIn.post('/invites/accept', async (c) => {
     sessionOnly(c)
     const id = sha256(str((await body(c)).token))
-    const invite = db.select().from(invites).where(and(eq(invites.id, id), gt(invites.expiresAt, Date.now()))).get()
+    const invite = await first(db.select().from(invites).where(and(eq(invites.id, id), gt(invites.expiresAt, Date.now()))))
     if (!invite || invite.acceptedAt) throw new ApiError(404, 'bad_invite', 'This invitation is not valid any more. Ask for a new one')
     if (invite.email !== c.get('user').email) throw new ApiError(403, 'wrong_account', `This invitation was sent to ${invite.email}. Sign in with that address to accept it`)
     const now = Date.now()
-    db.update(invites).set({ acceptedAt: now }).where(eq(invites.id, id)).run()
-    const already = membershipsOf(c.get('user').id).some((w) => w.id === invite.workspaceId)
-    if (!already) db.insert(members).values({ workspaceId: invite.workspaceId, userId: c.get('user').id, role: invite.role, createdAt: now }).run()
-    setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), invite.workspaceId)
-    return c.json({ workspace: membershipsOf(c.get('user').id).find((w) => w.id === invite.workspaceId) })
+    await db.update(invites).set({ acceptedAt: now }).where(eq(invites.id, id))
+    const already = (await membershipsOf(c.get('user').id)).some((w) => w.id === invite.workspaceId)
+    if (!already) await db.insert(members).values({ workspaceId: invite.workspaceId, userId: c.get('user').id, role: invite.role, createdAt: now })
+    await setSessionWorkspace(db, getCookie(c, SESSION_COOKIE), invite.workspaceId)
+    return c.json({ workspace: (await membershipsOf(c.get('user').id)).find((w) => w.id === invite.workspaceId) })
   })
 
-  const memberOf = (c: Context<Env>) => {
-    const target = db.select().from(members).where(and(eq(members.workspaceId, c.get('ws').id), eq(members.userId, c.req.param('userId') ?? ''))).get()
+  const memberOf = async (c: Context<Env>) => {
+    const target = await first(db.select().from(members).where(and(eq(members.workspaceId, c.get('ws').id), eq(members.userId, c.req.param('userId') ?? ''))))
     if (!target) throw new ApiError(404, 'not_found', 'That person is not a member')
     return target
   }
@@ -508,86 +506,85 @@ export function createApp(options: AppOptions) {
     sessionOnly(c)
     need(c, 'manage')
     const ws = c.get('ws')
-    const target = memberOf(c)
+    const target = await memberOf(c)
     const role = (await body(c)).role
     // You can only change people below you, and only to roles below you.
     if (target.userId === c.get('user').id || rank(target.role) >= rank(ws.role)) throw new ApiError(403, 'forbidden', 'You cannot change this person')
     if (!isRole(role) || !mayGrant(ws.role, role)) throw new ApiError(422, 'invalid', 'You cannot give that role')
-    db.update(members).set({ role }).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId))).run()
+    await db.update(members).set({ role }).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId)))
     return c.json({ ok: true })
   })
 
-  signedIn.delete('/workspace/members/:userId', (c) => {
+  signedIn.delete('/workspace/members/:userId', async (c) => {
     sessionOnly(c)
     const ws = c.get('ws')
-    const target = memberOf(c)
+    const target = await memberOf(c)
     const self = target.userId === c.get('user').id
     if (self && target.role === 'owner') throw new ApiError(403, 'forbidden', 'The owner cannot leave the workspace')
     if (!self) {
       need(c, 'manage')
       if (rank(target.role) >= rank(ws.role)) throw new ApiError(403, 'forbidden', 'You cannot remove this person')
     }
-    db.delete(members).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId))).run()
+    await db.delete(members).where(and(eq(members.workspaceId, ws.id), eq(members.userId, target.userId)))
     // Their keys for this workspace stop working, and their sessions fall back to another workspace.
-    db.delete(apiKeys).where(and(eq(apiKeys.workspaceId, ws.id), eq(apiKeys.userId, target.userId))).run()
+    await db.delete(apiKeys).where(and(eq(apiKeys.workspaceId, ws.id), eq(apiKeys.userId, target.userId)))
     return c.json({ ok: true })
   })
 
-  signedIn.get('/api-keys', (c) => {
+  signedIn.get('/api-keys', async (c) => {
     sessionOnly(c)
-    const rows = db
+    const rows = await db
       .select({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt })
       .from(apiKeys)
       .where(and(eq(apiKeys.userId, c.get('user').id), eq(apiKeys.workspaceId, c.get('ws').id)))
       .orderBy(desc(apiKeys.createdAt))
-      .all()
     return c.json({ keys: rows })
   })
   signedIn.post('/api-keys', async (c) => {
     sessionOnly(c)
     const name = str((await body(c)).name).slice(0, 80) || 'API key'
     const key = `fk_${randomToken(24)}`
-    db.insert(apiKeys).values({ id: sha256(key), userId: c.get('user').id, workspaceId: c.get('ws').id, name, prefix: key.slice(0, 10), createdAt: Date.now() }).run()
+    await db.insert(apiKeys).values({ id: sha256(key), userId: c.get('user').id, workspaceId: c.get('ws').id, name, prefix: key.slice(0, 10), createdAt: Date.now() })
     // The only time the key is ever shown.
     return c.json({ key, name, prefix: key.slice(0, 10) }, 201)
   })
-  signedIn.delete('/api-keys/:id', (c) => {
+  signedIn.delete('/api-keys/:id', async (c) => {
     sessionOnly(c)
-    db.delete(apiKeys).where(and(eq(apiKeys.id, c.req.param('id')), eq(apiKeys.userId, c.get('user').id))).run()
+    await db.delete(apiKeys).where(and(eq(apiKeys.id, c.req.param('id')), eq(apiKeys.userId, c.get('user').id)))
     return c.json({ ok: true })
   })
 
   /** Loads a form and checks it belongs to the current workspace. Other workspaces' forms look like they do not exist. */
-  const ownForm = (c: Context<Env>, id = c.req.param('id') ?? '') => {
-    const form = db.select().from(forms).where(and(eq(forms.id, id), eq(forms.workspaceId, c.get('ws').id))).get()
+  const ownForm = async (c: Context<Env>, id = c.req.param('id') ?? '') => {
+    const form = await first(db.select().from(forms).where(and(eq(forms.id, id), eq(forms.workspaceId, c.get('ws').id))))
     if (!form) throw new ApiError(404, 'not_found', 'Form not found')
     return form
   }
-  const uniqueSlug = (base: string, exceptId?: string) => {
+  const uniqueSlug = async (base: string, exceptId?: string) => {
     for (let n = 1; ; n++) {
       const slug = n === 1 ? base : `${base}-${n}`
-      const taken = db.select({ id: forms.id }).from(forms).where(eq(forms.slug, slug)).get()
+      const taken = await first(db.select({ id: forms.id }).from(forms).where(eq(forms.slug, slug)))
       if (!taken || taken.id === exceptId) return slug
     }
   }
-  const summary = (form: typeof forms.$inferSelect) => ({
+  const summary = async (form: typeof forms.$inferSelect) => ({
     id: form.id,
     name: form.name,
     slug: form.slug,
     status: form.status,
     publishedAt: form.publishedAt,
     updatedAt: form.updatedAt,
-    submissions: submissionCount(form.id),
+    submissions: await submissionCount(form.id),
     // True when the builder has changes that respondents cannot see yet.
     unpublishedChanges: form.status === 'published' && JSON.stringify(form.schema) !== JSON.stringify(form.publishedSchema),
-    closedReason: form.status === 'published' ? closedReason(form) : null,
+    closedReason: form.status === 'published' ? await closedReason(form) : null,
   })
-  const detail = (form: typeof forms.$inferSelect) => ({ ...summary(form), schema: form.schema, settings: form.settings, issues: checkSchema(form.schema) })
+  const detail = async (form: typeof forms.$inferSelect) => ({ ...(await summary(form)), schema: form.schema, settings: form.settings, issues: checkSchema(form.schema) })
 
-  signedIn.get('/dashboard', (c) => {
-    const mine = db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id)).all()
+  signedIn.get('/dashboard', async (c) => {
+    const mine = await db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id))
     const ids = mine.map((f) => f.id)
-    const rows = ids.length ? db.select().from(submissions).where(inArray(submissions.formId, ids)).orderBy(desc(submissions.createdAt)).all() : []
+    const rows = ids.length ? await db.select().from(submissions).where(inArray(submissions.formId, ids)).orderBy(desc(submissions.createdAt)) : []
     const now = Date.now()
     const names = new Map(mine.map((f) => [f.id, f.name]))
     return c.json({
@@ -602,20 +599,20 @@ export function createApp(options: AppOptions) {
     })
   })
 
-  signedIn.get('/templates', (c) => c.json({ templates: TEMPLATES.map(({ id, name, description, schema }) => ({ id, name, description, fields: columnsOf(schema).length })) }))
+  signedIn.get('/templates', async (c) => c.json({ templates: TEMPLATES.map(({ id, name, description, schema }) => ({ id, name, description, fields: columnsOf(schema).length })) }))
 
-  signedIn.get('/forms', (c) => {
-    const rows = db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id)).orderBy(desc(forms.updatedAt)).all()
-    return c.json({ forms: rows.map(summary) })
+  signedIn.get('/forms', async (c) => {
+    const rows = await db.select().from(forms).where(eq(forms.workspaceId, c.get('ws').id)).orderBy(desc(forms.updatedAt))
+    return c.json({ forms: await Promise.all(rows.map(summary)) })
   })
 
-  const insertForm = (c: Context<Env>, name: string, schema: FormSchema, settings: FormSettings = {}) => {
+  const insertForm = async (c: Context<Env>, name: string, schema: FormSchema, settings: FormSettings = {}) => {
     const now = Date.now()
     const form = {
-      id: newId(), ownerId: c.get('user').id, workspaceId: c.get('ws').id, name, slug: uniqueSlug(slugify(name)), status: 'draft' as const, schema,
+      id: newId(), ownerId: c.get('user').id, workspaceId: c.get('ws').id, name, slug: await uniqueSlug(slugify(name)), status: 'draft' as const, schema,
       publishedSchema: null, publishedAt: null, settings, createdAt: now, updatedAt: now,
     }
-    db.insert(forms).values(form).run()
+    await db.insert(forms).values(form)
     return form
   }
 
@@ -627,22 +624,22 @@ export function createApp(options: AppOptions) {
     const name = (str(input.name) || template?.name || 'Untitled form').slice(0, 120)
     const given = isObject(input.schema) && Array.isArray(input.schema.pages) ? (input.schema as unknown as FormSchema) : undefined
     const schema = given ?? (template ? { ...template.schema, title: name } : blankSchema(name))
-    return c.json({ form: detail(insertForm(c, name, schema)) }, 201)
+    return c.json({ form: await detail(await insertForm(c, name, schema)) }, 201)
   })
 
-  signedIn.post('/forms/:id/duplicate', (c) => {
+  signedIn.post('/forms/:id/duplicate', async (c) => {
     need(c, 'edit')
-    const source = ownForm(c)
+    const source = await ownForm(c)
     // The copy starts as an unpublished draft with the same design and settings, and no submissions.
     const { exposedFields: _unused, ...settings } = source.settings
-    return c.json({ form: detail(insertForm(c, `${source.name} (copy)`.slice(0, 120), source.schema, settings)) }, 201)
+    return c.json({ form: await detail(await insertForm(c, `${source.name} (copy)`.slice(0, 120), source.schema, settings)) }, 201)
   })
 
-  signedIn.get('/forms/:id', (c) => c.json({ form: detail(ownForm(c)) }))
+  signedIn.get('/forms/:id', async (c) => c.json({ form: await detail(await ownForm(c)) }))
 
   signedIn.patch('/forms/:id', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
+    const form = await ownForm(c)
     const input = await body(c)
     const patch: Partial<typeof forms.$inferInsert> = { updatedAt: Date.now() }
     const fail = (field: string, message: string): never => {
@@ -655,7 +652,7 @@ export function createApp(options: AppOptions) {
     if (input.slug !== undefined) {
       const slug = str(input.slug).toLowerCase()
       if (!SLUG.test(slug)) fail('slug', 'Use up to 60 lowercase letters, digits and hyphens, starting with a letter or digit')
-      if (uniqueSlug(slug, form.id) !== slug) throw new ApiError(409, 'slug_taken', 'That address is already used by another form', { slug: ['That address is already used by another form'] })
+      if (await uniqueSlug(slug, form.id) !== slug) throw new ApiError(409, 'slug_taken', 'That address is already used by another form', { slug: ['That address is already used by another form'] })
       patch.slug = slug
     }
     if (input.schema !== undefined) {
@@ -689,13 +686,13 @@ export function createApp(options: AppOptions) {
       }
       patch.settings = next
     }
-    db.update(forms).set(patch).where(eq(forms.id, form.id)).run()
-    return c.json({ form: detail(ownForm(c)) })
+    await db.update(forms).set(patch).where(eq(forms.id, form.id))
+    return c.json({ form: await detail(await ownForm(c)) })
   })
 
-  signedIn.post('/forms/:id/publish', (c) => {
+  signedIn.post('/forms/:id/publish', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
+    const form = await ownForm(c)
     const errors = checkSchema(form.schema).filter((i) => i.level === 'error')
     if (errors.length) {
       throw new ApiError(422, 'schema_errors', 'Fix the problems in the form before publishing', Object.fromEntries(errors.map((e, i) => [`${i}:${e.path}`, [e.message]])))
@@ -703,33 +700,33 @@ export function createApp(options: AppOptions) {
     const now = Date.now()
     // Publishing the same design twice does not create a new version.
     if (JSON.stringify(form.schema) !== JSON.stringify(form.publishedSchema) || form.status !== 'published') {
-      const last = db.select({ v: versions.version, schema: versions.schema }).from(versions).where(eq(versions.formId, form.id)).orderBy(desc(versions.version)).limit(1).get()
+      const last = await first(db.select({ v: versions.version, schema: versions.schema }).from(versions).where(eq(versions.formId, form.id)).orderBy(desc(versions.version)).limit(1))
       if (!last || JSON.stringify(last.schema) !== JSON.stringify(form.schema)) {
-        db.insert(versions).values({ id: newId(), formId: form.id, version: (last?.v ?? 0) + 1, schema: form.schema, publishedAt: now }).run()
+        await db.insert(versions).values({ id: newId(), formId: form.id, version: (last?.v ?? 0) + 1, schema: form.schema, publishedAt: now })
       }
     }
-    db.update(forms).set({ status: 'published', publishedSchema: form.schema, publishedAt: now, updatedAt: now }).where(eq(forms.id, form.id)).run()
-    return c.json({ form: summary(ownForm(c)) })
+    await db.update(forms).set({ status: 'published', publishedSchema: form.schema, publishedAt: now, updatedAt: now }).where(eq(forms.id, form.id))
+    return c.json({ form: await summary(await ownForm(c)) })
   })
 
-  signedIn.post('/forms/:id/unpublish', (c) => {
+  signedIn.post('/forms/:id/unpublish', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
-    db.update(forms).set({ status: 'draft', updatedAt: Date.now() }).where(eq(forms.id, form.id)).run()
-    return c.json({ form: summary(ownForm(c)) })
+    const form = await ownForm(c)
+    await db.update(forms).set({ status: 'draft', updatedAt: Date.now() }).where(eq(forms.id, form.id))
+    return c.json({ form: await summary(await ownForm(c)) })
   })
 
   signedIn.delete('/forms/:id', async (c) => {
     need(c, 'manage')
-    const form = ownForm(c)
-    for (const file of db.select({ id: files.id }).from(files).where(eq(files.formId, form.id)).all()) await storage.remove(file.id)
-    db.delete(forms).where(eq(forms.id, form.id)).run()
+    const form = await ownForm(c)
+    for (const file of await db.select({ id: files.id }).from(files).where(eq(files.formId, form.id))) await storage.remove(file.id)
+    await db.delete(forms).where(eq(forms.id, form.id))
     return c.json({ ok: true })
   })
 
-  signedIn.get('/forms/:id/versions', (c) => {
-    const form = ownForm(c)
-    const rows = db.select().from(versions).where(eq(versions.formId, form.id)).orderBy(desc(versions.version)).all()
+  signedIn.get('/forms/:id/versions', async (c) => {
+    const form = await ownForm(c)
+    const rows = await db.select().from(versions).where(eq(versions.formId, form.id)).orderBy(desc(versions.version))
     const live = JSON.stringify(form.publishedSchema)
     return c.json({
       versions: rows.map((v) => ({
@@ -744,74 +741,76 @@ export function createApp(options: AppOptions) {
   })
 
   // Restoring copies an old version into the draft. Nothing changes for respondents until it is published.
-  signedIn.post('/forms/:id/versions/:versionId/restore', (c) => {
+  signedIn.post('/forms/:id/versions/:versionId/restore', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
-    const version = db.select().from(versions).where(and(eq(versions.id, c.req.param('versionId')), eq(versions.formId, form.id))).get()
+    const form = await ownForm(c)
+    const version = await first(db.select().from(versions).where(and(eq(versions.id, c.req.param('versionId')), eq(versions.formId, form.id))))
     if (!version) throw new ApiError(404, 'not_found', 'Version not found')
-    db.update(forms).set({ schema: version.schema, updatedAt: Date.now() }).where(eq(forms.id, form.id)).run()
-    return c.json({ form: detail(ownForm(c)) })
+    await db.update(forms).set({ schema: version.schema, updatedAt: Date.now() }).where(eq(forms.id, form.id))
+    return c.json({ form: await detail(await ownForm(c)) })
   })
 
-  signedIn.get('/forms/:id/report', (c) => {
-    const form = ownForm(c)
-    const rows = db.select({ data: submissions.data, status: submissions.status, createdAt: submissions.createdAt }).from(submissions).where(eq(submissions.formId, form.id)).all()
+  signedIn.get('/forms/:id/report', async (c) => {
+    const form = await ownForm(c)
+    const rows = await db.select({ data: submissions.data, status: submissions.status, createdAt: submissions.createdAt }).from(submissions).where(eq(submissions.formId, form.id))
     return c.json({ report: buildReport(form.publishedSchema ?? form.schema, rows) })
   })
 
   // ---------- Webhooks ----------
-  signedIn.get('/forms/:id/webhooks', (c) => {
+  signedIn.get('/forms/:id/webhooks', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
-    const hooks = db.select().from(webhooks).where(eq(webhooks.formId, form.id)).orderBy(asc(webhooks.createdAt)).all()
+    const form = await ownForm(c)
+    const hooks = await db.select().from(webhooks).where(eq(webhooks.formId, form.id)).orderBy(asc(webhooks.createdAt))
     return c.json({
-      webhooks: hooks.map((h) => ({
+      webhooks: await Promise.all(
+        hooks.map(async (h) => ({
         id: h.id,
         url: h.url,
         active: h.active,
         secret: h.secret,
-        last: db.select().from(deliveries).where(eq(deliveries.webhookId, h.id)).orderBy(desc(deliveries.createdAt)).limit(1).get() ?? null,
-      })),
+        last: (await first(db.select().from(deliveries).where(eq(deliveries.webhookId, h.id)).orderBy(desc(deliveries.createdAt)).limit(1))) ?? null,
+        })),
+      ),
     })
   })
   signedIn.post('/forms/:id/webhooks', async (c) => {
     need(c, 'edit')
-    const form = ownForm(c)
+    const form = await ownForm(c)
     const url = str((await body(c)).url)
     const problem = webhookUrlProblem(url, allowPrivateWebhooks)
     if (problem) throw new ApiError(422, 'invalid', 'Please check the details', { url: [problem] })
-    if ((db.select({ n: count() }).from(webhooks).where(eq(webhooks.formId, form.id)).get()?.n ?? 0) >= 10) throw new ApiError(422, 'invalid', 'A form can have at most 10 webhooks')
+    if (((await first(db.select({ n: count() }).from(webhooks).where(eq(webhooks.formId, form.id))))?.n ?? 0) >= 10) throw new ApiError(422, 'invalid', 'A form can have at most 10 webhooks')
     const hook = { id: newId(), formId: form.id, url, secret: `whsec_${randomToken(24)}`, active: true, createdAt: Date.now() }
-    db.insert(webhooks).values(hook).run()
+    await db.insert(webhooks).values(hook)
     return c.json({ webhook: { id: hook.id, url: hook.url, active: true, secret: hook.secret, last: null } }, 201)
   })
-  const ownHook = (c: Context<Env>) => {
-    const hook = db.select().from(webhooks).where(and(eq(webhooks.id, c.req.param('hookId') ?? ''), eq(webhooks.formId, ownForm(c).id))).get()
+  const ownHook = async (c: Context<Env>) => {
+    const hook = await first(db.select().from(webhooks).where(and(eq(webhooks.id, c.req.param('hookId') ?? ''), eq(webhooks.formId, (await ownForm(c)).id))))
     if (!hook) throw new ApiError(404, 'not_found', 'Webhook not found')
     return hook
   }
   signedIn.patch('/forms/:id/webhooks/:hookId', async (c) => {
     need(c, 'edit')
-    const hook = ownHook(c)
-    db.update(webhooks).set({ active: (await body(c)).active === true }).where(eq(webhooks.id, hook.id)).run()
+    const hook = await ownHook(c)
+    await db.update(webhooks).set({ active: (await body(c)).active === true }).where(eq(webhooks.id, hook.id))
     return c.json({ ok: true })
   })
-  signedIn.delete('/forms/:id/webhooks/:hookId', (c) => {
+  signedIn.delete('/forms/:id/webhooks/:hookId', async (c) => {
     need(c, 'edit')
-    db.delete(webhooks).where(eq(webhooks.id, ownHook(c).id)).run()
+    await db.delete(webhooks).where(eq(webhooks.id, (await ownHook(c)).id))
     return c.json({ ok: true })
   })
   signedIn.post('/forms/:id/webhooks/:hookId/test', async (c) => {
     need(c, 'edit')
-    const hook = ownHook(c)
-    const form = ownForm(c)
+    const hook = await ownHook(c)
+    const form = await ownForm(c)
     const result = await deliver(db, fetcher, hook, 'webhook.test', { form: { id: form.id, name: form.name, slug: form.slug }, submission: null })
     return c.json({ result })
   })
 
   // ---------- Submissions ----------
-  signedIn.get('/forms/:id/submissions', (c) => {
-    const form = ownForm(c)
+  signedIn.get('/forms/:id/submissions', async (c) => {
+    const form = await ownForm(c)
     const limit = Math.min(100, Math.max(1, Number(c.req.query('limit')) || 25))
     const offset = Math.max(0, Number(c.req.query('offset')) || 0)
     const q = (c.req.query('q') ?? '').trim()
@@ -820,55 +819,53 @@ export function createApp(options: AppOptions) {
     const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`
     const where = and(
       eq(submissions.formId, form.id),
-      q ? sql`${submissions.data} LIKE ${pattern} ESCAPE '\\'` : undefined,
+      q ? sql`lower(${submissions.data}) LIKE lower(${pattern}) ESCAPE '\\'` : undefined,
       status ? eq(submissions.status, status) : undefined,
     )
-    const rows = db.select().from(submissions).where(where).orderBy(desc(submissions.createdAt)).limit(limit).offset(offset).all()
-    const total = db.select({ n: count() }).from(submissions).where(where).get()?.n ?? 0
+    const rows = await db.select().from(submissions).where(where).orderBy(desc(submissions.createdAt)).limit(limit).offset(offset)
+    const total = (await first(db.select({ n: count() }).from(submissions).where(where)))?.n ?? 0
     return c.json({ submissions: rows, total, columns: columnsOf(form.publishedSchema ?? form.schema) })
   })
 
-  signedIn.get('/forms/:id/submissions.csv', (c) => {
-    const form = ownForm(c)
-    const rows = db.select().from(submissions).where(eq(submissions.formId, form.id)).orderBy(desc(submissions.createdAt)).all()
+  signedIn.get('/forms/:id/submissions.csv', async (c) => {
+    const form = await ownForm(c)
+    const rows = await db.select().from(submissions).where(eq(submissions.formId, form.id)).orderBy(desc(submissions.createdAt))
     const columns = [...columnsOf(form.publishedSchema ?? form.schema), { key: '__status', label: 'Status' }]
     c.header('content-type', 'text/csv; charset=utf-8')
     c.header('content-disposition', `attachment; filename="${form.slug}-submissions.csv"`)
     return c.body(toCsv(columns, rows.map((r) => ({ ...r, data: { ...r.data, __status: r.status } }))))
   })
 
-  const ownSubmission = (c: Context<Env>) => {
-    const row = db
+  const ownSubmission = async (c: Context<Env>) => {
+    const row = await first(db
       .select({ submission: submissions, form: forms })
       .from(submissions)
       .innerJoin(forms, eq(forms.id, submissions.formId))
-      .where(and(eq(submissions.id, c.req.param('id') ?? ''), eq(forms.workspaceId, c.get('ws').id)))
-      .get()
+      .where(and(eq(submissions.id, c.req.param('id') ?? ''), eq(forms.workspaceId, c.get('ws').id))))
     if (!row) throw new ApiError(404, 'not_found', 'Submission not found')
     return row
   }
-  const notesOf = (submissionId: string) =>
-    db
+  const notesOf = async (submissionId: string) =>
+    await db
       .select({ id: notes.id, body: notes.body, createdAt: notes.createdAt, author: users.name })
       .from(notes)
       .innerJoin(users, eq(users.id, notes.userId))
       .where(eq(notes.submissionId, submissionId))
       .orderBy(asc(notes.createdAt))
-      .all()
 
-  signedIn.get('/submissions/:id', (c) => {
-    const { submission, form } = ownSubmission(c)
+  signedIn.get('/submissions/:id', async (c) => {
+    const { submission, form } = await ownSubmission(c)
     return c.json({
       submission,
       form: { id: form.id, name: form.name },
       schema: form.publishedSchema ?? form.schema,
       columns: columnsOf(form.publishedSchema ?? form.schema),
-      notes: notesOf(submission.id),
+      notes: await notesOf(submission.id),
     })
   })
 
   signedIn.patch('/submissions/:id', async (c) => {
-    const { submission, form } = ownSubmission(c)
+    const { submission, form } = await ownSubmission(c)
     const input = await body(c)
     const patch: Partial<typeof submissions.$inferInsert> = { updatedAt: Date.now() }
     need(c, input.data !== undefined ? 'edit' : 'review')
@@ -884,35 +881,34 @@ export function createApp(options: AppOptions) {
       if (!result.valid) throw new ApiError(422, 'invalid', 'Some answers need attention', result.errors)
       patch.data = result.data
     }
-    db.update(submissions).set(patch).where(eq(submissions.id, submission.id)).run()
-    const updated = ownSubmission(c).submission
-    if (patch.status && patch.status !== submission.status) announce(form, 'submission.status_changed', updated)
+    await db.update(submissions).set(patch).where(eq(submissions.id, submission.id))
+    const updated = (await ownSubmission(c)).submission
+    if (patch.status && patch.status !== submission.status) await announce(form, 'submission.status_changed', updated)
     return c.json({ submission: updated })
   })
 
   signedIn.post('/submissions/:id/notes', async (c) => {
     need(c, 'review')
-    const { submission } = ownSubmission(c)
+    const { submission } = await ownSubmission(c)
     const text = str((await body(c)).body)
     if (!text) throw new ApiError(422, 'invalid', 'Please check the details', { body: ['Write a note first'] })
-    db.insert(notes).values({ id: newId(), submissionId: submission.id, userId: c.get('user').id, body: text.slice(0, 4000), createdAt: Date.now() }).run()
-    return c.json({ notes: notesOf(submission.id) }, 201)
+    await db.insert(notes).values({ id: newId(), submissionId: submission.id, userId: c.get('user').id, body: text.slice(0, 4000), createdAt: Date.now() })
+    return c.json({ notes: await notesOf(submission.id) }, 201)
   })
 
-  signedIn.delete('/submissions/:id', (c) => {
+  signedIn.delete('/submissions/:id', async (c) => {
     need(c, 'edit')
-    db.delete(submissions).where(eq(submissions.id, ownSubmission(c).submission.id)).run()
+    await db.delete(submissions).where(eq(submissions.id, (await ownSubmission(c)).submission.id))
     return c.json({ ok: true })
   })
 
   // Uploaded files are private: only the form's owner can download them.
   signedIn.get('/files/:id', async (c) => {
-    const row = db
+    const row = await first(db
       .select({ file: files })
       .from(files)
       .innerJoin(forms, eq(forms.id, files.formId))
-      .where(and(eq(files.id, c.req.param('id')), eq(forms.workspaceId, c.get('ws').id)))
-      .get()
+      .where(and(eq(files.id, c.req.param('id')), eq(forms.workspaceId, c.get('ws').id))))
     const bytes = row ? await storage.read(row.file.id) : null
     if (!row || !bytes) throw new ApiError(404, 'not_found', 'File not found')
     // Always a download, never shown in the page, so an uploaded HTML file cannot run as part of this site.

@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.claude
+.env
+*.sqlite*
+**/uploads
+apps/docs/.vitepress/cache

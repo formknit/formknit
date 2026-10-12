@@ -150,8 +150,63 @@ Email is not connected to a mail server yet. In development each message is prin
 terminal and stored in the `outbox` table; to send for real, give `createMailer` a transport in
 `apps/api/src/index.ts`.
 
-It uses SQLite through Drizzle so it can move to PostgreSQL. Not built: payments, Google
-Sheets, PDF generation, Excel export, PostgreSQL and Docker setup.
+Not built: payments, Google Sheets, PDF generation, Excel export.
+
+### Database
+
+The platform stores everything in SQLite by default (a single file, nothing to install) and can
+use PostgreSQL instead. Set `DATABASE_URL` to choose:
+
+| `DATABASE_URL` | Database |
+|---|---|
+| not set | SQLite in `apps/api/formknit.sqlite` |
+| a file path, e.g. `/data/formknit.sqlite` | SQLite in that file |
+| `postgres://user:password@host:5432/name` | PostgreSQL |
+
+Tables are created and upgraded when the server starts. Data is not copied from one database to
+the other, so pick one before collecting real submissions. With PostgreSQL, start one server at a
+time when upgrading, so two do not run the same upgrade step together.
+
+`pnpm --filter @formknit/api test` runs the API tests twice, once on each database.
+
+### Deploying
+
+One server can hand out both the API and the built admin app, so a deployment is a single address.
+
+With Docker and PostgreSQL:
+
+```bash
+cp .env.example .env    # then set WEB_ORIGIN and POSTGRES_PASSWORD
+docker compose up -d
+```
+
+With Docker and SQLite, for a small install:
+
+```bash
+docker build -t formknit .
+docker run -d -p 8787:8787 -v formknit-data:/data -e WEB_ORIGIN=https://forms.example.com formknit
+```
+
+Without Docker:
+
+```bash
+pnpm install
+pnpm --filter "@formknit/web..." build
+cd apps/api
+WEB_DIR=../web/dist WEB_ORIGIN=https://forms.example.com node --import tsx src/index.ts
+```
+
+| Setting | Meaning |
+|---|---|
+| `WEB_ORIGIN` | The address people open in their browser. Requests that change data from anywhere else are refused, and emailed links use it |
+| `DATABASE_URL` | See above |
+| `UPLOAD_DIR` | Folder for uploaded files. Defaults to `uploads` |
+| `WEB_DIR` | Folder holding the built admin app. Leave unset to run the API alone |
+| `PORT` | Defaults to 8787 |
+
+Put it behind HTTPS (a reverse proxy such as Caddy or nginx) before real use: sign-in cookies are
+marked secure only when `WEB_ORIGIN` starts with `https://`. Back up the database and the upload
+folder.
 
 ## Server validation
 
