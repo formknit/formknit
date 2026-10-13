@@ -188,8 +188,9 @@ function Card({ component: c, path }: { component: ComponentSchema; path: Path }
       className={cx('fxb-card', selected && 'fxb-selected', b.drag?.kind === 'move' && b.drag.path === key && 'fxb-dragging')}
       draggable
       tabIndex={0}
-      role="button"
-      aria-pressed={selected}
+      // A group, not a button: a card holds its own buttons, and sometimes other cards.
+      role="group"
+      aria-current={selected ? 'true' : undefined}
       aria-label={`${def?.label ?? c.type}: ${name}`}
       onClick={(e) => {
         e.stopPropagation()
@@ -245,8 +246,9 @@ export function Canvas() {
     })
   return (
     <div className="fxb-canvas" onClick={() => b.select(null)}>
-      <div className="fxb-pages" role="tablist" aria-label="Pages">
-        {pages.map((page, i) => (
+      <div className="fxb-pages">
+        <div className="fxb-page-tabs" role="tablist" aria-label="Pages">
+          {pages.map((page, i) => (
           <button
             key={page.key}
             type="button"
@@ -262,7 +264,8 @@ export function Canvas() {
             <span className="fxb-page-number">{i + 1}</span>
             {page.title || page.key}
           </button>
-        ))}
+          ))}
+        </div>
         <button type="button" className="fxb-page-tab fxb-page-add" onClick={(e) => (e.stopPropagation(), addPage())}>
           + Add page
         </button>

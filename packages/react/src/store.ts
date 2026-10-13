@@ -14,7 +14,7 @@ export interface FormOptions<D = FormValues> {
   /** Values to start with, e.g. a saved draft. */
   defaultValues?: FormValues
   /** Called with the cleaned data once every rule passes. May return a promise. */
-  onSubmit?: (data: D) => void | Promise<void>
+  onSubmit?: (data: D) => unknown
   /** Called after every change with the raw values, e.g. to save a draft. */
   onChange?: (values: FormValues, state: FormState) => void
   /** Stores a chosen file and returns what to keep in the data, usually a URL or id. */

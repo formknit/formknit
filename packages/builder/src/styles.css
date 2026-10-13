@@ -6,11 +6,11 @@
   --fx-subtle: #f5f6f8;
   --fx-border: #e2e5eb;
   --fx-text: #151922;
-  --fx-muted: #667085;
+  --fx-muted: #5d6679;
   --fx-danger: #d92d20;
   --fx-radius: 8px;
   --fxb-soft: #eef0ff;
-  --fxb-ok: #079455;
+  --fxb-ok: #067647;
   --fxb-warn: #b54708;
 
   display: flex;
@@ -30,12 +30,13 @@
 .fxb *::after {
   box-sizing: border-box;
 }
-.fxb button {
+/* Low priority on purpose, so buttons of the form shown in the preview keep their own look. */
+:where(.fxb) button {
   font: inherit;
   color: inherit;
   cursor: pointer;
 }
-.fxb button:disabled {
+:where(.fxb) button:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -533,3 +534,6 @@ textarea.fxb-input {
     order: 1;
   }
 }
+
+/* The page tabs sit in their own element for screen readers; it takes no part in the layout. */
+.fxb-page-tabs { display: contents; }

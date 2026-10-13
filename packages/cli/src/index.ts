@@ -1,7 +1,7 @@
 import { checkSchema, getField, type ComponentSchema, type FormSchema, type SchemaIssue } from '@formknit/core'
 import { readFile, writeFile } from 'node:fs/promises'
 
-const TEXT = new Set(['text', 'textarea', 'email', 'phone', 'url', 'date', 'time', 'signature'])
+const TEXT = new Set(['text', 'textarea', 'richText', 'email', 'phone', 'url', 'date', 'time', 'signature'])
 const NUMBER = new Set(['number', 'rating', 'slider'])
 const BOOLEAN = new Set(['checkbox', 'toggle'])
 const literal = (value: string) => JSON.stringify(value)

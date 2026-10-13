@@ -2,6 +2,7 @@ import { form, richText, text, type FormSchema } from '@formknit/core'
 import { defaultAdapter, Form } from '@formknit/react'
 import type { Editor } from '@tiptap/react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import axe from 'axe-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRichTextField, parseToolbar, RichTextView, withRichText } from '../src'
 
@@ -36,6 +37,18 @@ describe('rich text field', () => {
     for (const name of ['Bold', 'Italic', 'Underline', 'Heading', 'Bulleted list', 'Numbered list', 'Quote', 'Link', 'Undo', 'Redo']) {
       expect(screen.getByRole('button', { name })).toBeTruthy()
     }
+  })
+
+  it('has no detectable accessibility problems, with the link box open too', async () => {
+    const { editor } = await mount({}, schema, { body: '<p>Hello</p>' })
+    const problems = async () =>
+      (await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })).violations.map((v) => `${v.id}: ${v.nodes[0].html.slice(0, 120)}`)
+    expect(await problems()).toEqual([])
+    act(() => {
+      editor.commands.selectAll()
+    })
+    act(() => screen.getByRole('button', { name: 'Link' }).click())
+    expect(await problems()).toEqual([])
   })
 
   it('shows the stored value and submits what is typed as clean HTML', async () => {

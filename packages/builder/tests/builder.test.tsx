@@ -26,7 +26,7 @@ describe('<FormBuilder>', () => {
       { type: 'text', label: 'Text', key: 'text' },
       { type: 'number', label: 'Number', key: 'number' },
     ])
-    expect(screen.getByRole('button', { name: 'Number: Number' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('group', { name: 'Number: Number' }).getAttribute('aria-current')).toBe('true')
     expect(settings().getByLabelText('Label')).toBeTruthy()
   })
 
@@ -60,7 +60,7 @@ describe('<FormBuilder>', () => {
 
   it('refuses a key another field uses', async () => {
     const { user, onChange, settings } = setup(form('F', [text('a'), text('b')]))
-    await user.click(screen.getByRole('button', { name: 'Text: b' }))
+    await user.click(screen.getByRole('group', { name: 'Text: b' }))
     const key = settings().getByLabelText('Field key')
     await user.clear(key)
     await user.type(key, 'a')
@@ -71,16 +71,16 @@ describe('<FormBuilder>', () => {
   it('moves, duplicates and deletes', async () => {
     const { user, latest } = setup(form('F', [text('a').label('A'), text('b').label('B'), text('c').label('C')]))
     const keys = () => latest().pages[0].components.map((c) => c.key)
-    await user.click(screen.getByRole('button', { name: 'Text: A' }))
+    await user.click(screen.getByRole('group', { name: 'Text: A' }))
     expect((screen.getByRole('button', { name: 'Move up: A' }) as HTMLButtonElement).disabled).toBe(true)
     await user.click(screen.getByRole('button', { name: 'Move down: A' }))
     expect(keys()).toEqual(['b', 'a', 'c'])
-    expect(screen.getByRole('button', { name: 'Text: A' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('group', { name: 'Text: A' }).getAttribute('aria-current')).toBe('true')
     await user.click(screen.getByRole('button', { name: 'Duplicate: A' }))
     expect(keys()).toEqual(['b', 'a', 'a2', 'c'])
     await user.click(screen.getByRole('button', { name: 'Delete: A' }))
     expect(keys()).toEqual(['b', 'a', 'c'])
-    screen.getByRole('button', { name: 'Text: C' }).focus()
+    screen.getByRole('group', { name: 'Text: C' }).focus()
     await user.keyboard('{Delete}')
     expect(keys()).toEqual(['b', 'a'])
   })
@@ -102,22 +102,22 @@ describe('<FormBuilder>', () => {
 
   it('drops a palette field and moves a field into a panel by dragging', async () => {
     const { latest, palette } = setup(form('F', [text('a').label('A')]))
-    const pageList = () => screen.getByRole('button', { name: 'Text: A' }).parentElement!
+    const pageList = () => screen.getByRole('group', { name: 'Text: A' }).parentElement!
     fireEvent.dragStart(palette.getByRole('button', { name: /^Panel$/ }))
     fireEvent.dragOver(pageList())
     fireEvent.drop(pageList())
     expect(latest().pages[0].components.map((c) => c.type)).toEqual(['text', 'panel'])
 
     const inside = screen.getByText('Drop fields into this group').parentElement!
-    fireEvent.dragStart(screen.getByRole('button', { name: 'Text: A' }))
+    fireEvent.dragStart(screen.getByRole('group', { name: 'Text: A' }))
     fireEvent.dragOver(inside)
     fireEvent.drop(inside)
     expect(latest().pages[0].components).toEqual([{ type: 'panel', label: 'Panel', components: [{ type: 'text', key: 'a', label: 'A' }] }])
 
     // A container cannot be dropped inside itself.
-    const nested = screen.getByRole('button', { name: 'Text: A' }).parentElement!
+    const nested = screen.getByRole('group', { name: 'Text: A' }).parentElement!
     const before = latest()
-    fireEvent.dragStart(screen.getByRole('button', { name: 'Panel: Panel' }))
+    fireEvent.dragStart(screen.getByRole('group', { name: 'Panel: Panel' }))
     fireEvent.dragOver(nested)
     fireEvent.drop(nested)
     expect(latest()).toBe(before)
@@ -125,7 +125,7 @@ describe('<FormBuilder>', () => {
 
   it('builds a show-when rule and writes it as an expression', async () => {
     const { user, latest, settings } = setup(form('F', [select('country', { NP: 'Nepal', IN: 'India' }).label('Country'), number('age').label('Age'), checkbox('agree').label('Agree'), text('district').label('District')]))
-    await user.click(screen.getByRole('button', { name: 'Text: District' }))
+    await user.click(screen.getByRole('group', { name: 'Text: District' }))
     await user.click(settings().getByRole('tab', { name: 'Logic' }))
     await user.click(settings().getByRole('button', { name: '+ Add rule' }))
     await user.selectOptions(settings().getByLabelText('Rule 1 field'), 'country')
@@ -153,7 +153,7 @@ describe('<FormBuilder>', () => {
 
   it('builds a nested group of rules', async () => {
     const { user, latest, settings } = setup(form('F', [select('country', { NP: 'Nepal' }).label('Country'), number('age').label('Age'), checkbox('consent').label('Consent'), text('district').label('District')]))
-    await user.click(screen.getByRole('button', { name: 'Text: District' }))
+    await user.click(screen.getByRole('group', { name: 'Text: District' }))
     await user.click(settings().getByRole('tab', { name: 'Logic' }))
     await user.click(settings().getByRole('button', { name: '+ Add rule' }))
     await user.selectOptions(settings().getByLabelText('Rule 1 field'), 'country')
@@ -200,7 +200,7 @@ describe('<FormBuilder>', () => {
 
   it('drags a card by touch', () => {
     const { latest } = setup(form('F', [text('a').label('A'), text('b').label('B'), text('c').label('C')]))
-    const card = (name: string) => screen.getByRole('button', { name: `Text: ${name}` })
+    const card = (name: string) => screen.getByRole('group', { name: `Text: ${name}` })
     const list = card('A').parentElement!
     // jsdom has no layout, so place the three cards 100px apart and say which element is under the finger.
     ;['A', 'B', 'C'].forEach((name, i) => {
@@ -291,9 +291,9 @@ describe('<FormBuilder>', () => {
     const a = form('A', [text('one')])
     const b = form('B', [text('two')])
     const { rerender } = render(<FormBuilder value={a} />)
-    expect(screen.getByRole('button', { name: 'Text: one' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Text: one' })).toBeTruthy()
     rerender(<FormBuilder value={b} />)
-    expect(screen.getByRole('button', { name: 'Text: two' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Text: two' })).toBeTruthy()
   })
 
   it('supports a custom field type end to end, as the guide describes', async () => {
