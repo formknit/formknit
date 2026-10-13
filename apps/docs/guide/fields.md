@@ -4,6 +4,7 @@
 |---|---|---|---|
 | `text` | `text(key)` | `string` | |
 | `textarea` | `textarea(key)` | `string` | `rows` sets the height |
+| `richText` | `richText(key)` | `string` | Cleaned HTML. Needs an editor: see [Rich text](./rich-text) |
 | `email` | `email(key)` | `string` | Must look like an email address |
 | `phone` | `phone(key)` | `string` | Digits, spaces, `+ ( ) . -`; 6 to 20 characters |
 | `url` | `url(key)` | `string` | Must start with `http://` or `https://` |

@@ -1,5 +1,6 @@
 import '@formknit/react/styles.css'
 import '@formknit/builder/styles.css'
+import '@formknit/richtext/styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'

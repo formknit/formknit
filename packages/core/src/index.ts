@@ -19,6 +19,8 @@ export { ADDRESS_PARTS } from './types'
 export { messagesNe } from './locales/ne'
 export { defineField, getField, listFields } from './registry'
 export type { FieldDefinition, FieldKind } from './registry'
+export { sanitizeHtml, htmlToText, RICH_TEXT_TAGS } from './html'
+export type { SanitizeOptions } from './html'
 export { defaultMessages } from './messages'
 export type { Messages } from './messages'
 export { checkSchema } from './model'
@@ -42,6 +44,7 @@ export {
   page,
   text,
   textarea,
+  richText,
   email,
   phone,
   date,

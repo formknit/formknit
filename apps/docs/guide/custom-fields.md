@@ -26,6 +26,7 @@ defineField({
 | `isEmpty(value)` | Overrides what "empty" means for `required` |
 | `check(value, component, label, messages)` | Returns an error message, or `null` |
 | `requiredMessage(label, messages)` | Replaces "… is required" |
+| `lengthOf(value)` | What `minLength` and `maxLength` count, when it is not the stored text itself |
 
 Run this on the server too, so `validate` knows the type.
 
@@ -70,3 +71,21 @@ registerBuilderField('colour', {
 ```
 
 Pass the same `components` to `<FormBuilder>` so its previews use your component.
+
+## Replacing a built-in field
+
+Every built-in type can be given a different component in the same way, without defining a new
+type. A date picker that shows another calendar, for example, only has to keep storing the date
+as `YYYY-MM-DD` so validation, formulas and `min`/`max` keep working:
+
+```tsx
+function MyDateField(p: FieldProps<string>) {
+  // show any calendar you like; call p.onChange('2027-04-14')
+}
+
+<Form schema={schema} components={{ fields: { date: MyDateField } }} />
+```
+
+If the value has a different shape (two calendars stored side by side, say), define a new type
+as in step 1 instead, and publish the three parts together as your own package: the
+`defineField` call, the component, and the `registerBuilderField` call.

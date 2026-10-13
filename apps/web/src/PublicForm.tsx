@@ -2,7 +2,7 @@ import type { FormSchema, LookupQuery } from '@formknit/core'
 import { Form } from '@formknit/react'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { api, ApiError, useLoad } from './api'
+import { api, ApiError, components, useLoad } from './api'
 
 /** Sends a file to the server, trying each file field of the form until one accepts it. */
 async function upload(slug: string, schema: FormSchema, file: File): Promise<unknown> {
@@ -63,6 +63,7 @@ export function PublicForm() {
           // A fresh form after each successful submit.
           key={String(done)}
           schema={data.schema}
+          components={components}
           draft={{ key: `formknit:${slug}` }}
           lookup={(query: LookupQuery) => api<{ value: unknown }>(`/public/forms/${slug}/lookup`, { method: 'POST', body: query }).then((r) => r.value)}
           // onUpload is called for one field at a time, so the form tells us which through `upload`.

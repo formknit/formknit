@@ -14,6 +14,7 @@
     "@formknit/builder": "workspace:*",
     "@formknit/core": "workspace:*",
     "@formknit/react": "workspace:*",
+    "@formknit/richtext": "workspace:*",
     "@mui/material": "^7.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -107,12 +107,14 @@ const ICONS: Record<string, string> = {
   dateRange: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h8"/>',
   address: '<path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   signature: '<path d="M3 17c3-6 5-9 6-8s-2 7-1 8 4-6 5-5-1 4 0 4 3-2 4-2M3 21h18"/>',
+  richText: '<path d="M4 6h16M4 11h10M4 16h16M4 21h7"/><path d="M17 9.5l3 3-3 3"/>',
   other: '<rect x="4" y="4" width="16" height="16" rx="3"/>',
 }
 
 const registry = new Map<string, BuilderField>([
   ['text', { settings: [PLACEHOLDER, ...LENGTH] }],
   ['textarea', { settings: [PLACEHOLDER, s('rows', 'Rows', 'number', 'display'), ...LENGTH] }],
+  ['richText', { settings: [PLACEHOLDER, s('toolbar', 'Toolbar buttons', 'text', 'display', 'e.g. bold, italic, link'), ...LENGTH] }],
   ['email', { settings: [PLACEHOLDER] }],
   ['phone', { settings: [PLACEHOLDER] }],
   ['number', { settings: [PLACEHOLDER, ...RANGE] }],

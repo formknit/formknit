@@ -98,6 +98,8 @@ const toOptions = (choices: Choices<string>): Option[] =>
 
 export const text = <K extends string>(key: K) => make<K, string>('text', key)
 export const textarea = <K extends string>(key: K) => make<K, string>('textarea', key)
+/** Formatted text from an editor, stored as cleaned HTML. */
+export const richText = <K extends string>(key: K) => make<K, string>('richText', key)
 export const email = <K extends string>(key: K) => make<K, string>('email', key)
 export const phone = <K extends string>(key: K) => make<K, string>('phone', key)
 /** Value is a `YYYY-MM-DD` string. */

@@ -3,10 +3,15 @@ import { FormBuilder } from '@formknit/builder'
 import '@formknit/builder/styles.css'
 import { Form, useForm, useFormState } from '@formknit/react'
 import '@formknit/react/styles.css'
+import { withRichText } from '@formknit/richtext'
+import '@formknit/richtext/styles.css'
 import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { examples, fakeLookup } from './examples'
 import './playground.css'
+
+const builtInComponents = withRichText()
+const muiComponents = withRichText(muiAdapter)
 
 type Name = keyof typeof examples
 
@@ -53,7 +58,7 @@ function Example({ name, mui }: { name: Name; mui: boolean }) {
           </button>
         </div>
         <div className={look.theme === 'dark' ? 'pg-card pg-card-dark' : 'pg-card'}>
-          <Form schema={schema} form={form} components={mui ? muiAdapter : undefined} {...look} />
+          <Form schema={schema} form={form} components={mui ? muiComponents : builtInComponents} {...look} />
         </div>
       </main>
       <aside className="pg-side">
@@ -101,7 +106,7 @@ function App() {
       </header>
       {tab === 'Builder' ? (
         <div className="pg-builder">
-          <FormBuilder defaultValue={examples['Admission form']} components={mui ? muiAdapter : undefined} />
+          <FormBuilder defaultValue={examples['Admission form']} components={mui ? muiComponents : builtInComponents} />
         </div>
       ) : (
         <Example key={tab} name={tab} mui={mui} />

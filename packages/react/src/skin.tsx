@@ -1,4 +1,4 @@
-import { ADDRESS_PARTS } from '@formknit/core'
+import { ADDRESS_PARTS, htmlToText } from '@formknit/core'
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import type {
   Adapter, ButtonProps, ColumnsProps, ContentProps, FieldProps, PanelProps, RepeaterProps, StepsProps,
@@ -79,6 +79,46 @@ function Input(p: FieldProps<string | number | null>) {
         onBlur={p.onBlur}
       />
     </Shell>
+  )
+}
+
+let warnedRichText = false
+
+/**
+ * Stands in for a rich text editor when none is installed: the text is edited plainly, one
+ * paragraph per line, and existing formatting is lost on edit. Use `withRichText` from
+ * `@formknit/richtext`, or your own editor, for the real thing.
+ */
+function RichTextFallback(p: FieldProps<string>) {
+  if (!warnedRichText && typeof console !== 'undefined') {
+    warnedRichText = true
+    console.warn('[formknit] No rich text editor is set up, so "richText" fields show a plain text box. Add one with withRichText() from @formknit/richtext.')
+  }
+  const toHtml = (plain: string) =>
+    plain
+      .split(/\n+/)
+      .filter((line) => line.trim())
+      .map((line) => `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('')
+  // Typing is kept as typed; the stored value is only read back when it changes from outside.
+  const [draft, setDraft] = useState(() => htmlToText(p.value ?? ''))
+  const sent = useRef(p.value ?? '')
+  useEffect(() => {
+    if ((p.value ?? '') !== sent.current) {
+      sent.current = p.value ?? ''
+      setDraft(htmlToText(p.value ?? ''))
+    }
+  }, [p.value])
+  return (
+    <Textarea
+      {...p}
+      value={draft}
+      onChange={(plain) => {
+        setDraft(plain)
+        sent.current = toHtml(plain)
+        p.onChange(sent.current)
+      }}
+    />
   )
 }
 
@@ -601,6 +641,7 @@ export const defaultAdapter: Adapter = {
     address: AddressField,
     signature: SignatureField,
     textarea: Textarea,
+    richText: RichTextFallback,
     select: Select,
     radio: Radio,
     checkboxGroup: CheckboxGroup,

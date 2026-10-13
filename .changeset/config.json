@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["@formknit/core", "@formknit/react", "@formknit/builder", "@formknit/adapter-mui", "@formknit/adapter-shadcn", "@formknit/cli"]],
+  "fixed": [["@formknit/core", "@formknit/react", "@formknit/builder", "@formknit/richtext", "@formknit/adapter-mui", "@formknit/adapter-shadcn", "@formknit/cli"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

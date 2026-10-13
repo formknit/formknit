@@ -1,17 +1,39 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "noEmit": true,
     "declaration": false,
     "paths": {
-      "@formknit/core": ["../../packages/core/src/index.ts"],
-      "@formknit/react": ["../../packages/react/src/index.ts"],
-      "@formknit/react/styles.css": ["../../packages/react/src/styles.css"],
-      "@formknit/builder": ["../../packages/builder/src/index.ts"],
-      "@formknit/builder/styles.css": ["../../packages/builder/src/styles.css"]
+      "@formknit/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@formknit/react": [
+        "../../packages/react/src/index.ts"
+      ],
+      "@formknit/react/styles.css": [
+        "../../packages/react/src/styles.css"
+      ],
+      "@formknit/builder": [
+        "../../packages/builder/src/index.ts"
+      ],
+      "@formknit/builder/styles.css": [
+        "../../packages/builder/src/styles.css"
+      ],
+      "@formknit/richtext": [
+        "../../packages/richtext/src/index.ts"
+      ],
+      "@formknit/richtext/styles.css": [
+        "../../packages/richtext/src/styles.css"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

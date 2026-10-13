@@ -1,3 +1,4 @@
+import { htmlToText, sanitizeHtml } from './html'
 import { defineField, type FieldDefinition } from './registry'
 import { ADDRESS_PARTS, type ComponentSchema } from './types'
 
@@ -112,6 +113,19 @@ defineField({
     const a = v as { line1: string; city: string }
     return a.line1 && a.city ? null : m.address(label)
   },
+})
+
+/**
+ * Formatted text from an editor, stored as HTML. It is cleaned every time it is read, on the
+ * server too, so only harmless formatting survives. Lengths count the words, not the markup.
+ */
+textual('richText', 'Rich text', {
+  coerce: (v) => {
+    const html = sanitizeHtml(text(v))
+    // An editor with nothing typed still sends an empty paragraph.
+    return htmlToText(html) || /<hr>/.test(html) ? html : ''
+  },
+  lengthOf: (v) => htmlToText(String(v)).length,
 })
 
 defineField({ type: 'hidden', kind: 'input', label: 'Hidden', group: 'Basic', emptyValue: null })

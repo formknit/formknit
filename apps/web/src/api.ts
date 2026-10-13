@@ -1,3 +1,4 @@
+import { withRichText } from '@formknit/richtext'
 import type { FormSchema, SchemaIssue } from '@formknit/core'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -126,6 +127,7 @@ export interface Submission {
 export interface Column {
   key: string
   label: string
+  type?: string
 }
 
 export const when = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -145,3 +147,6 @@ export function show(value: unknown): string {
   const text = String(value)
   return text.startsWith('data:image/') ? 'Signed' : text
 }
+
+/** Form components used everywhere in the app: the built-in ones plus the rich text editor. */
+export const components = withRichText()

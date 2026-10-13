@@ -1,0 +1,66 @@
+/* Rich text editor. Uses the same variables as @formknit/react, so themes, sizes and dark mode carry over. */
+.fx-richtext {
+  border: 1px solid var(--fx-border, #cbd5e1);
+  border-radius: var(--fx-radius, 8px);
+  background: var(--fx-surface, #fff);
+  color: var(--fx-text, #0f172a);
+}
+.fx-richtext:focus-within {
+  border-color: var(--fx-primary, #4f46e5);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-primary, #4f46e5) 20%, transparent);
+}
+.fx-richtext-invalid { border-color: var(--fx-danger, #dc2626); }
+.fx-richtext-disabled { opacity: 0.6; }
+
+.fx-richtext-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--fx-border, #cbd5e1);
+}
+.fx-richtext-gap { width: 1px; margin: 4px 4px; background: var(--fx-border, #cbd5e1); }
+.fx-richtext-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.fx-richtext-button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.fx-richtext-button:focus-visible { outline: 2px solid var(--fx-primary, #4f46e5); outline-offset: 1px; }
+.fx-richtext-button:disabled { opacity: 0.4; cursor: default; }
+.fx-richtext-button-active { background: color-mix(in srgb, var(--fx-primary, #4f46e5) 16%, transparent); color: var(--fx-primary, #4f46e5); }
+
+.fx-richtext-link { display: flex; gap: 6px; padding: 6px; border-bottom: 1px solid var(--fx-border, #cbd5e1); }
+.fx-richtext-link .fx-input { flex: 1; min-width: 0; }
+
+.fx-richtext-content { min-height: 7em; padding: 10px 12px; outline: none; font: inherit; line-height: 1.5; }
+.fx-richtext-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--fx-muted, #64748b);
+}
+
+/* Shared by the editor and by RichTextView, so text looks the same while typing and when shown. */
+.fx-richtext-content > :first-child, .fx-richtext-view > :first-child { margin-top: 0; }
+.fx-richtext-content > :last-child, .fx-richtext-view > :last-child { margin-bottom: 0; }
+.fx-richtext-content :is(p, ul, ol, blockquote, pre), .fx-richtext-view :is(p, ul, ol, blockquote, pre) { margin: 0 0 0.6em; }
+.fx-richtext-content :is(h1, h2, h3, h4), .fx-richtext-view :is(h1, h2, h3, h4) { margin: 0.8em 0 0.4em; line-height: 1.25; }
+.fx-richtext-content h2, .fx-richtext-view h2 { font-size: 1.3em; }
+.fx-richtext-content h3, .fx-richtext-view h3 { font-size: 1.12em; }
+.fx-richtext-content :is(ul, ol), .fx-richtext-view :is(ul, ol) { padding-left: 1.4em; }
+.fx-richtext-content li p, .fx-richtext-view li p { margin: 0; }
+.fx-richtext-content blockquote, .fx-richtext-view blockquote { padding-left: 0.8em; border-left: 3px solid var(--fx-border, #cbd5e1); color: var(--fx-muted, #64748b); }
+.fx-richtext-content code, .fx-richtext-view code { padding: 0.1em 0.3em; border-radius: 4px; background: color-mix(in srgb, currentColor 10%, transparent); font-size: 0.92em; }
+.fx-richtext-content pre, .fx-richtext-view pre { padding: 0.7em 0.9em; border-radius: 6px; background: color-mix(in srgb, currentColor 10%, transparent); overflow-x: auto; }
+.fx-richtext-content pre code, .fx-richtext-view pre code { padding: 0; background: none; }
+.fx-richtext-content a, .fx-richtext-view a { color: var(--fx-primary, #4f46e5); text-decoration: underline; }
+.fx-richtext-content hr, .fx-richtext-view hr { border: 0; border-top: 1px solid var(--fx-border, #cbd5e1); margin: 0.8em 0; }

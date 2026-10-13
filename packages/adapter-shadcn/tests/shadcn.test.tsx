@@ -58,6 +58,6 @@ describe('shadcn/ui adapter', () => {
   it('covers the common fields and leaves the rest to the built-in skin', () => {
     const report = describeAdapter(shadcnAdapter)
     expect(report.missing).toEqual([])
-    expect(report.fallback.sort()).toEqual(['address', 'columns', 'content', 'dateRange', 'divider', 'hidden', 'rating', 'signature'])
+    expect(report.fallback.sort()).toEqual(['address', 'columns', 'content', 'dateRange', 'divider', 'hidden', 'rating', 'richText', 'signature'])
   })
 })

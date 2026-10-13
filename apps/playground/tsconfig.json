@@ -26,6 +26,12 @@
       ],
       "@formknit/adapter-mui": [
         "../../packages/adapter-mui/src/index.tsx"
+      ],
+      "@formknit/richtext": [
+        "../../packages/richtext/src/index.ts"
+      ],
+      "@formknit/richtext/styles.css": [
+        "../../packages/richtext/src/styles.css"
       ]
     }
   },

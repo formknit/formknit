@@ -12,6 +12,7 @@ builder.
 |---|---|---|
 | `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
 | `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, lookups, uploads, drafts, swappable components, themeable responsive skin |
+| `@formknit/richtext` | Working | Rich text editor field built on Tiptap, with a configurable toolbar and extensions |
 | `@formknit/adapter-mui` | Working | Renders forms with Material UI components and your MUI theme |
 | `@formknit/adapter-shadcn` | Working, see note | One file you copy into a shadcn/ui project. Tested against stand-in components, not yet inside a real shadcn project |
 | `@formknit/cli` | Working | `formknit check` lists schema problems; `formknit types` generates a TypeScript type |

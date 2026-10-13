@@ -10,6 +10,8 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: '@formknit/adapter-mui', replacement: src('adapter-mui/src/index.tsx') },
+      { find: '@formknit/richtext/styles.css', replacement: src('richtext/src/styles.css') },
+      { find: '@formknit/richtext', replacement: src('richtext/src/index.ts') },
       { find: '@formknit/builder/styles.css', replacement: src('builder/src/styles.css') },
       { find: '@formknit/builder', replacement: src('builder/src/index.ts') },
       { find: '@formknit/react/styles.css', replacement: src('react/src/styles.css') },

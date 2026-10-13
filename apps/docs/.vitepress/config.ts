@@ -39,6 +39,7 @@ export default defineConfig({
         text: 'Extending',
         items: [
           { text: 'Custom field types', link: '/guide/custom-fields' },
+          { text: 'Rich text editor', link: '/guide/rich-text' },
           { text: 'Visual builder', link: '/guide/builder' },
           { text: 'Command line', link: '/guide/cli' },
         ],

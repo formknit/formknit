@@ -7,7 +7,7 @@ import {
   createSession, deleteSession, findSessionUser, hashPassword, newId, rateLimiter, SESSION_COOKIE, SESSION_DAYS, setSessionWorkspace,
   verifyPassword,
 } from './auth'
-import { columnsOf, toCsv } from './csv'
+import { columnsOf, plain, toCsv } from './csv'
 import {
   apiKeys, deliveries, files, first, forms, invites, members, notes, passwordResets, sessions, STATUSES, submissions, users, versions,
   webhooks, workspaces, type Db, type FormSettings, type Status,
@@ -312,7 +312,7 @@ export function createApp(options: AppOptions) {
     for (const hook of hooks) background(deliver(db, fetcher, hook, event, { form: { id: form.id, name: form.name, slug: form.slug }, submission }))
     if (event !== 'submission.created') return
     const lines = columnsOf(form.publishedSchema ?? form.schema).map((col) => {
-      const value = submission.data[col.key]
+      const value = plain(col, submission.data[col.key])
       return `${col.label}: ${value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)}`
     })
     for (const to of form.settings.notifyEmails ?? []) {

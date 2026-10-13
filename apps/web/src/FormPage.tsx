@@ -1,10 +1,12 @@
 import { FormBuilder } from '@formknit/builder'
-import type { FormSchema } from '@formknit/core'
+import { htmlToText, type FormSchema } from '@formknit/core'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Form } from '@formknit/react'
+import { RichTextView } from '@formknit/richtext'
 import {
   api,
+  components,
   ApiError,
   show,
   STATUS_CLASS,
@@ -178,7 +180,7 @@ export function FormPage() {
       </nav>
       {tab === 'build' && (
         <div className="builder-area">
-          <FormBuilder key={draftEpoch} defaultValue={form.schema} onChange={onSchema} />
+          <FormBuilder key={draftEpoch} defaultValue={form.schema} onChange={onSchema} components={components} />
         </div>
       )}
       {tab === 'submissions' && <Submissions form={form} />}
@@ -296,7 +298,7 @@ function Submissions({ form }: { form: FormDetail }) {
                   <span className={STATUS_CLASS[s.status]}>{STATUS_LABEL[s.status]}</span>
                 </td>
                 {columns.map((c) => (
-                  <td key={c.key}>{show(s.data[c.key])}</td>
+                  <td key={c.key}>{show(c.type === 'richText' && typeof s.data[c.key] === 'string' ? htmlToText(s.data[c.key] as string) : s.data[c.key])}</td>
                 ))}
                 <td className="actions">
                   <Link to={`/submissions/${s.id}`} onClick={(e) => e.stopPropagation()}>
@@ -660,7 +662,7 @@ export function SubmissionPage() {
     ...columns,
     ...Object.keys(submission.data)
       .filter((k) => !known.has(k))
-      .map((key) => ({ key, label: key })),
+      .map((key): Column => ({ key, label: key })),
   ]
   // Show a choice as the text the respondent saw ("Nepal"), not the stored value ("NP").
   const optionLabels = new Map<string, Map<string, string>>()
@@ -746,6 +748,7 @@ export function SubmissionPage() {
           <div className="card grow">
             <Form
               schema={{ ...data.schema, submitLabel: 'Save answers' }}
+              components={components}
               defaultValues={submission.data}
               onSubmit={(answers) => update({ data: answers })}
             />
@@ -772,6 +775,8 @@ export function SubmissionPage() {
                       <img className="signature" src={value} alt={`${c.label} (signature)`} />
                     ) : file ? (
                       <a href={file.url}>{file.name ?? 'Download file'}</a>
+                    ) : c.type === 'richText' && typeof value === 'string' ? (
+                      <RichTextView html={value} />
                     ) : nested ? (
                       <pre className="code">{JSON.stringify(value, null, 2)}</pre>
                     ) : (

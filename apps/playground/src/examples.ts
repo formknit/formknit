@@ -1,6 +1,6 @@
 import {
   address, calculated, checkbox, columns, content, date, dateRange, divider, email, field, form, lookup, number, page, panel,
-  radio, rating, repeater, select, signature, slider, text, textarea, url, type LookupQuery,
+  radio, rating, repeater, richText, select, signature, slider, text, textarea, url, type LookupQuery,
 } from '@formknit/core'
 
 export const admission = form(
@@ -74,6 +74,7 @@ export const showcase = form(
     dateRange('stay').label('Dates of stay').width(6),
     signature('sign').label('Signature').width(6),
     address('home').label('Home address'),
+    richText('about').label('About you').placeholder('Write a few lines…').description('Formatted text, stored as cleaned HTML.').maxLength(500),
     panel('Feedback', [
       radio('recommend', { yes: 'Yes', maybe: 'Maybe', no: 'No' }).label('Would you recommend us?').className('fx-stack-choices').width(4),
       textarea('comments').label('Comments').width(8),

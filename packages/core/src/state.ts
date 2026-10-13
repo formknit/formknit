@@ -220,8 +220,9 @@ export function computeState(schema: FormSchema, input: FormValues = {}, opts: C
 
     const out: string[] = []
     if (typeof value === 'string') {
-      if (v.minLength !== undefined && value.length < v.minLength) out.push(messages.minLength(label, v.minLength))
-      if (v.maxLength !== undefined && value.length > v.maxLength) out.push(messages.maxLength(label, v.maxLength))
+      const length = node.def?.lengthOf ? node.def.lengthOf(value) : value.length
+      if (v.minLength !== undefined && length < v.minLength) out.push(messages.minLength(label, v.minLength))
+      if (v.maxLength !== undefined && length > v.maxLength) out.push(messages.maxLength(label, v.maxLength))
       if (v.pattern) {
         let re: RegExp | null = null
         try {

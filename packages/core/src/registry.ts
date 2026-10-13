@@ -25,6 +25,8 @@ export interface FieldDefinition {
   coerce?(value: unknown, component: ComponentSchema): unknown
   /** Overrides what counts as empty for `required`. */
   isEmpty?(value: unknown): boolean
+  /** What `minLength` and `maxLength` count, when it is not simply the stored text. */
+  lengthOf?(value: unknown): number
   /** Message when the field is required but empty. Defaults to "… is required". */
   requiredMessage?(label: string, messages: Messages): string
   /** Type-specific check of a non-empty value. Returns an error message or null. */

@@ -1,13 +1,23 @@
-import { getField, type ComponentSchema, type FormSchema } from '@formknit/core'
+import { getField, htmlToText, type ComponentSchema, type FormSchema } from '@formknit/core'
 
 /** Top-level data fields of a schema, in form order, with their labels. */
-export function columnsOf(schema: FormSchema): { key: string; label: string }[] {
-  const out: { key: string; label: string }[] = []
+export interface Column {
+  key: string
+  label: string
+  /** The field type, when the column comes from a field. */
+  type?: string
+}
+
+/** A stored answer as plain text, for places that cannot show formatting. */
+export const plain = (column: Column, value: unknown): unknown => (column.type === 'richText' && typeof value === 'string' ? htmlToText(value) : value)
+
+export function columnsOf(schema: FormSchema): Column[] {
+  const out: Column[] = []
   const visit = (list: ComponentSchema[] | undefined) => {
     for (const c of list ?? []) {
       const kind = getField(c.type)?.kind
       if (c.key && (kind === 'input' || kind === 'calculated' || kind === 'repeater')) {
-        if (!out.some((col) => col.key === c.key)) out.push({ key: c.key, label: c.label || c.key })
+        if (!out.some((col) => col.key === c.key)) out.push({ key: c.key, label: c.label || c.key, type: c.type })
         continue
       }
       visit(c.components)
@@ -25,8 +35,8 @@ function cell(value: unknown): string {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-export function toCsv(columns: { key: string; label: string }[], rows: { id: string; createdAt: number; data: Record<string, unknown> }[]): string {
+export function toCsv(columns: Column[], rows: { id: string; createdAt: number; data: Record<string, unknown> }[]): string {
   const header = ['Submitted', 'ID', ...columns.map((c) => c.label)].map(cell).join(',')
-  const lines = rows.map((row) => [new Date(row.createdAt).toISOString(), row.id, ...columns.map((c) => row.data[c.key])].map(cell).join(','))
+  const lines = rows.map((row) => [new Date(row.createdAt).toISOString(), row.id, ...columns.map((c) => plain(c, row.data[c.key]))].map(cell).join(','))
   return [header, ...lines].join('\r\n') + '\r\n'
 }
