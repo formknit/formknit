@@ -147,9 +147,9 @@ What works today:
   with a delivery log and a test button
 - **Lookups between forms**, limited to fields the source form has marked as readable
 
-Email is not connected to a mail server yet. In development each message is printed in the API's
-terminal and stored in the `outbox` table; to send for real, give `createMailer` a transport in
-`apps/api/src/index.ts`.
+Email (password resets, invitations, notifications) is sent through any SMTP server once
+`SMTP_URL` is set. Without it, development prints each message in the API's terminal, and
+production only records them in the `outbox` table.
 
 Not built: payments, Google Sheets, PDF generation, Excel export.
 
@@ -203,6 +203,9 @@ WEB_DIR=../web/dist WEB_ORIGIN=https://forms.example.com node --import tsx src/i
 | `DATABASE_URL` | See above |
 | `UPLOAD_DIR` | Folder for uploaded files. Defaults to `uploads` |
 | `WEB_DIR` | Folder holding the built admin app. Leave unset to run the API alone |
+| `SMTP_URL` | Mail server, e.g. `smtps://user:password@smtp.example.com:465` or `smtp://user:password@smtp.example.com:587`. Without it no email is sent |
+| `MAIL_FROM` | Sender shown on emails, e.g. `Forms <forms@example.com>` |
+| `REGISTRATION` | `open` (default) lets anyone create an account. `invite` allows only the first account and people invited to a workspace |
 | `PORT` | Defaults to 8787 |
 
 Put it behind HTTPS (a reverse proxy such as Caddy or nginx) before real use: sign-in cookies are

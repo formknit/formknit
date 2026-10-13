@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { api, ApiError, atLeast, ROLE_LABEL, type Role, type User, type Workspace } from './api'
+import { api, ApiError, atLeast, ROLE_LABEL, useLoad, type Role, type User, type Workspace } from './api'
 
 interface Auth {
   /** `undefined` while the session is being checked, `null` when signed out. */
@@ -71,11 +71,16 @@ export function Logo() {
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
-  const from = (useLocation().state as { from?: string } | null)?.from ?? '/'
+  const state = useLocation().state as { from?: string; email?: string } | null
+  const from = state?.from ?? '/'
+  // Arriving from an invitation: its token lets the account be created even when sign-up is closed.
+  const invite = from.startsWith('/invite?token=') ? decodeURIComponent(from.slice('/invite?token='.length)) : undefined
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  const { data: config } = useLoad(() => api<{ registration: 'open' | 'invite' }>('/auth/config'), [])
   if (user) return <Navigate to={from} replace />
   const register = mode === 'register'
+  const closed = config?.registration === 'invite' && !invite
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -83,7 +88,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true)
     setError(null)
     try {
-      const res = await api<{ user: User }>(`/auth/${mode}`, { method: 'POST', body: data })
+      const res = await api<{ user: User }>(`/auth/${mode}`, { method: 'POST', body: register ? { ...data, invite } : data })
       setUser(res.user)
       navigate(from, { replace: true })
     } catch (err) {
@@ -95,7 +100,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const field = (name: string, label: string, type: string, autoComplete: string, hint?: string) => (
     <label className="field">
       <span>{label}</span>
-      <input name={name} type={type} autoComplete={autoComplete} required aria-invalid={!!error?.fields[name]} />
+      <input name={name} type={type} autoComplete={autoComplete} required aria-invalid={!!error?.fields[name]} defaultValue={name === 'email' ? state?.email : undefined} />
       {error?.fields[name] ? <small className="danger">{error.fields[name][0]}</small> : hint && <small className="muted">{hint}</small>}
     </label>
   )
@@ -107,6 +112,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <h1>{register ? 'Create your account' : 'Sign in'}</h1>
           <p className="muted">{register ? 'Start building forms in a few minutes.' : 'Welcome back. Enter your details to continue.'}</p>
         </div>
+        {register && closed && (
+          <div className="banner" role="status">
+            Sign-up is by invitation only. Ask an admin of your team to invite you, then use the link in the email.
+          </div>
+        )}
         {register && field('name', 'Full name', 'text', 'name')}
         {field('email', 'Email', 'email', 'email')}
         {field('password', 'Password', 'password', register ? 'new-password' : 'current-password', register ? 'At least 12 characters' : undefined)}
@@ -115,7 +125,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             {error.message}
           </div>
         )}
-        <button className="button primary" disabled={busy}>
+        <button className="button primary" disabled={busy || (register && closed)}>
           {busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}
         </button>
         {!register && (
@@ -123,10 +133,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <Link to="/forgot">Forgot your password?</Link>
           </p>
         )}
-        <p className="muted centered">
-          {register ? 'Already have an account? ' : "Don't have an account? "}
-          <Link to={register ? '/login' : '/register'}>{register ? 'Sign in' : 'Create one'}</Link>
-        </p>
+        {(register || config?.registration !== 'invite' || invite) && (
+          <p className="muted centered">
+            {register ? 'Already have an account? ' : "Don't have an account? "}
+            <Link to={register ? '/login' : '/register'} state={state}>
+              {register ? 'Sign in' : 'Create one'}
+            </Link>
+          </p>
+        )}
       </form>
     </div>
   )
@@ -241,7 +255,7 @@ export function InvitePage() {
       setError(err as ApiError)
     }
   }
-  const here = { from: `/invite?token=${token}` }
+  const here = { from: `/invite?token=${encodeURIComponent(token)}`, email: invite?.email }
   return (
     <div className="center">
       <div className="card auth-card">

@@ -34,6 +34,11 @@ export interface AppOptions {
   fetcher?: typeof fetch
   /** Allow webhooks to private addresses and plain http. For local development only. */
   allowPrivateWebhooks?: boolean
+  /**
+   * Who may create an account. `open` lets anyone; `invite` lets only people holding an
+   * invitation, plus the very first account, which sets the install up.
+   */
+  registration?: 'open' | 'invite'
 }
 
 type User = { id: string; email: string; name: string }
@@ -83,7 +88,7 @@ function checkPassword(password: string): string | null {
 }
 
 export function createApp(options: AppOptions) {
-  const { db, webOrigins = ['http://localhost:5175'], secureCookies = false, allowPrivateWebhooks = false } = options
+  const { db, webOrigins = ['http://localhost:5175'], secureCookies = false, allowPrivateWebhooks = false, registration = 'open' } = options
   const mail = options.mailer ?? createMailer(db)
   const storage = options.storage ?? memoryStorage()
   const fetcher = options.fetcher ?? fetch
@@ -156,6 +161,11 @@ export function createApp(options: AppOptions) {
     })
 
   // ---------- Accounts ----------
+  /** Whether someone without an invitation may create an account right now. */
+  const openToAnyone = async () => registration === 'open' || !(await first(db.select({ id: users.id }).from(users).limit(1)))
+  // Lets the sign-in pages show or hide "create an account".
+  app.get('/api/auth/config', async (c) => c.json({ registration: (await openToAnyone()) ? 'open' : 'invite' }))
+
   app.post('/api/auth/register', async (c) => {
     const input = await body(c)
     const name = str(input.name)
@@ -167,6 +177,12 @@ export function createApp(options: AppOptions) {
     const weak = checkPassword(password)
     if (weak) fields.password = [weak]
     if (Object.keys(fields).length) throw new ApiError(422, 'invalid', 'Please check the details', fields)
+    if (!(await openToAnyone())) {
+      const invite = await first(db.select().from(invites).where(and(eq(invites.id, sha256(str(input.invite))), gt(invites.expiresAt, Date.now()))))
+      if (!invite || invite.acceptedAt || invite.email !== email) {
+        throw new ApiError(403, 'registration_closed', 'Sign-up is by invitation only. Use the link in your invitation email, with the address it was sent to')
+      }
+    }
     if (await first(db.select({ id: users.id }).from(users).where(eq(users.email, email)))) {
       throw new ApiError(409, 'email_taken', 'An account with this email already exists', { email: ['An account with this email already exists'] })
     }

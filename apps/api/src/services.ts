@@ -1,3 +1,4 @@
+import { createTransport } from 'nodemailer'
 import { getField, type ComponentSchema, type FormSchema } from '@formknit/core'
 import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
@@ -34,6 +35,17 @@ export function createMailer(db: Db, transport?: Transport) {
     } catch (e) {
       await db.update(outbox).set({ error: e instanceof Error ? e.message : String(e) }).where(eq(outbox.id, id))
     }
+  }
+}
+
+/**
+ * Sends through an SMTP server. `url` looks like `smtps://user:password@smtp.example.com:465`
+ * (or `smtp://…:587`, which upgrades to an encrypted connection when the server offers it).
+ */
+export function smtpTransport(url: string, from: string): Transport {
+  const smtp = createTransport(url)
+  return async (mail) => {
+    await smtp.sendMail({ from, to: mail.to, subject: mail.subject, text: mail.text })
   }
 }
 

@@ -3,16 +3,19 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { createApp } from './app'
 import { createDb, DATABASE_URL, POSTGRES } from './db'
-import { createMailer, diskStorage, type Transport } from './services'
+import { createMailer, diskStorage, smtpTransport, type Transport } from './services'
 
 const port = Number(process.env.PORT ?? 8787)
 const production = process.env.NODE_ENV === 'production'
 const db = await createDb()
 
-// No email provider is wired up yet. In development each email is printed here (and kept in
-// the outbox table) so links such as password resets can be followed. In production, replace
-// this with a transport that calls your SMTP server or email provider.
+// Email goes through SMTP when SMTP_URL is set. Without it, development prints each message
+// here so links such as password resets can be followed, and production only records them in
+// the outbox table.
 const printToTerminal: Transport = async (mail) => console.log(`\n--- Email to ${mail.to} ---\nSubject: ${mail.subject}\n\n${mail.text}\n---\n`)
+const smtpUrl = process.env.SMTP_URL
+const transport = smtpUrl ? smtpTransport(smtpUrl, process.env.MAIL_FROM ?? 'Formknit <no-reply@localhost>') : production ? undefined : printToTerminal
+if (production && !smtpUrl) console.warn('SMTP_URL is not set, so no email will be sent: password resets, invitations and notifications will not arrive.')
 
 const webOrigins = (process.env.WEB_ORIGIN ?? 'http://localhost:5175').split(',').map((o) => o.trim())
 
@@ -21,7 +24,8 @@ const app = createApp({
   webOrigins,
   // Browsers drop "secure" cookies on plain http, so follow the address people actually use.
   secureCookies: webOrigins[0].startsWith('https://'),
-  mailer: createMailer(db, production ? undefined : printToTerminal),
+  mailer: createMailer(db, transport),
+  registration: process.env.REGISTRATION === 'invite' ? 'invite' : 'open',
   storage: diskStorage(process.env.UPLOAD_DIR ?? 'uploads'),
   allowPrivateWebhooks: !production,
 })

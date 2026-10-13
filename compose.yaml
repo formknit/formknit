@@ -10,6 +10,9 @@ services:
       # The address people open in their browser. Used for sign-in safety checks and emailed links.
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8787}
       DATABASE_URL: postgres://formknit:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/formknit
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      REGISTRATION: ${REGISTRATION:-invite}
     volumes:
       - uploads:/data
     depends_on:
