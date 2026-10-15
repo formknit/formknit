@@ -1,6 +1,6 @@
 {
   "name": "@formknit/richtext",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Rich text editor field for Formknit forms, built on Tiptap. Configurable toolbar and extensions.",
   "license": "MIT",
   "type": "module",

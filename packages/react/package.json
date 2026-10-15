@@ -1,6 +1,6 @@
 {
   "name": "@formknit/react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "React renderer for Formknit forms: <Form>, headless hooks and a themeable default skin.",
   "license": "MIT",
   "type": "module",
