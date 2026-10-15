@@ -4,7 +4,7 @@ Open-source form engine for React developers: describe a form once as data, then
 render it, validate it on the server with the same rules, and edit it in a visual
 builder.
 
-**Status: early development, nothing published yet.** See [PLAN.md](PLAN.md) for the roadmap.
+**Status: early (0.x).** Published on npm under `@formknit`; expect breaking changes between minor versions until 1.0. See [PLAN.md](PLAN.md) for the roadmap.
 
 ## Packages
 
