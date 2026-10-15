@@ -1,6 +1,9 @@
 # Publishes to npm. When changesets land on main this opens a "Version packages" pull request;
 # merging that pull request publishes the new versions.
-# Needs a repository secret named NPM_TOKEN (an npm automation token for the @formknit scope).
+#
+# Publishing uses npm trusted publishing: npm trusts this repository and this workflow file
+# directly, so no npm token is stored anywhere. Each package lists this workflow as its trusted
+# publisher in its settings on npmjs.com. Renaming this file breaks that link.
 name: Release
 on:
   push:
@@ -9,28 +12,26 @@ concurrency: release
 permissions:
   contents: write
   pull-requests: write
+  # Lets the job prove to npm which repository and workflow it is.
   id-token: write
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # Trusted publishing needs npm 11.5 or newer, which comes with Node.js 24.
+          node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
-          version: pnpm changeset version
-          publish: pnpm release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+          version-script: pnpm changeset version
+          publish-script: pnpm release
+          create-github-releases: true
