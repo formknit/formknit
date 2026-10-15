@@ -1,5 +1,13 @@
 # @formknit/richtext
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [2b3e1a4]
+  - @formknit/core@0.1.1
+  - @formknit/react@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

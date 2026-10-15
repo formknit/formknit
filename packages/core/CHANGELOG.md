@@ -1,5 +1,12 @@
 # @formknit/core
 
+## 0.1.1
+
+### Patch Changes
+
+- 2b3e1a4: Published from GitHub Actions with npm trusted publishing, so each version carries a provenance
+  statement linking it to the source commit. No code changes.
+
 ## 0.1.0
 
 ### Minor Changes
