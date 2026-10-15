@@ -1,6 +1,6 @@
 {
   "name": "@formknit/builder",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Drag-and-drop visual builder for Formknit forms.",
   "license": "MIT",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@formknit/adapter-shadcn",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "shadcn/ui components for Formknit forms. Copy registry/formknit.tsx into your project.",
   "license": "MIT",
   "type": "module",

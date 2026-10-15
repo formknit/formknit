@@ -1,6 +1,6 @@
 {
   "name": "@formknit/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Schema, validation and formula engine for Formknit forms. No dependencies; runs in browsers, Node and Bun.",
   "license": "MIT",
   "type": "module",

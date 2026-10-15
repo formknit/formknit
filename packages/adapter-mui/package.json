@@ -1,6 +1,6 @@
 {
   "name": "@formknit/adapter-mui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Material UI components for Formknit forms.",
   "license": "MIT",
   "type": "module",
