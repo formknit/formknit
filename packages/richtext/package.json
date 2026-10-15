@@ -1,6 +1,6 @@
 {
   "name": "@formknit/richtext",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Rich text editor field for Formknit forms, built on Tiptap. Configurable toolbar and extensions.",
   "license": "MIT",
   "type": "module",
@@ -34,7 +34,7 @@
     "@tiptap/starter-kit": "^3.31.0"
   },
   "peerDependencies": {
-    "@formknit/react": ">=0.1.0",
+    "@formknit/react": ">=0.1.1",
     "react": ">=18",
     "react-dom": ">=18"
   },
