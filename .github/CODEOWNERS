@@ -1,0 +1,15 @@
+# Code owners are asked to review every pull request that touches the files they own.
+# A pattern later in this file wins over an earlier one for the same file.
+# https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Everything
+*                       @nexorainfo
+
+# Releases and automation: a merge here can publish to npm.
+/.github/               @nexorainfo
+/.changeset/            @nexorainfo
+
+# Security-sensitive code: the formula interpreter, the HTML cleaner, and platform sign-in and access.
+/packages/core/src/expr/    @nexorainfo
+/packages/core/src/html.ts  @nexorainfo
+/apps/api/src/              @nexorainfo
