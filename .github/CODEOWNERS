@@ -3,13 +3,13 @@
 # https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Everything
-*                       @nexorainfo
+*                       @shishirrai98
 
 # Releases and automation: a merge here can publish to npm.
-/.github/               @nexorainfo
-/.changeset/            @nexorainfo
+/.github/               @shishirrai98
+/.changeset/            @shishirrai98
 
 # Security-sensitive code: the formula interpreter, the HTML cleaner, and platform sign-in and access.
-/packages/core/src/expr/    @nexorainfo
-/packages/core/src/html.ts  @nexorainfo
-/apps/api/src/              @nexorainfo
+/packages/core/src/expr/    @shishirrai98
+/packages/core/src/html.ts  @shishirrai98
+/apps/api/src/              @shishirrai98
