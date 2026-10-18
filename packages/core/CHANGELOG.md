@@ -1,5 +1,11 @@
 # @formknit/core
 
+## 0.1.2
+
+### Patch Changes
+
+- c552723: Link each package to the new documentation site at https://formknit.github.io/formknit/.
+
 ## 0.1.1
 
 ### Patch Changes

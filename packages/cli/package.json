@@ -1,6 +1,6 @@
 {
   "name": "@formknit/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Command-line tools for Formknit: check a form schema and generate TypeScript types from it.",
   "license": "MIT",
   "type": "module",
