@@ -37,5 +37,9 @@
     "type": "git",
     "url": "git+https://github.com/formknit/formknit.git",
     "directory": "packages/cli"
+  },
+  "homepage": "https://formknit.github.io/formknit/guide/cli",
+  "bugs": {
+    "url": "https://github.com/formknit/formknit/issues"
   }
 }

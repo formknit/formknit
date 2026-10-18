@@ -7,17 +7,24 @@ hero:
   actions:
     - theme: brand
       text: Get started
-      link: /guide/getting-started
+      link: /guide/introduction
     - theme: alt
-      text: Field types
-      link: /guide/fields
+      text: Your first form
+      link: /guide/quickstart
+    - theme: alt
+      text: GitHub
+      link: https://github.com/formknit/formknit
 features:
   - title: One definition
     details: Write a form in code or JSON. The renderer, the server validator and the visual builder all read the same schema.
   - title: Spreadsheet-style formulas
-    details: Calculated fields, show/hide rules and custom validation share one small, safe expression language.
+    details: Totals, show and hide rules and custom checks share one small, safe expression language. Nothing is ever run as JavaScript.
+  - title: The same rules on the server
+    details: validate() recalculates every formula and drops hidden or unknown fields, so a browser can never sneak bad data in.
   - title: Your UI library
-    details: A themeable default skin, a Material UI adapter and a shadcn/ui adapter. Or map fields to your own components.
-  - title: Typed
-    details: Forms written with the code-first builders give you the type of the submitted data for free.
+    details: A themeable built-in look, adapters for Material UI and shadcn/ui, or your own components for any field.
+  - title: A builder for your users
+    details: Embed a drag-and-drop form designer with a rule builder, formula editor, pages, undo and live preview.
+  - title: Self-hostable platform
+    details: An optional app for publishing forms, collecting and reviewing submissions, teams, webhooks and an API. SQLite or PostgreSQL.
 ---

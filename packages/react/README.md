@@ -35,6 +35,6 @@ export const ContactForm = () => <Form schema={contact} onSubmit={(data) => send
 <Form schema={contact} size="lg" variant="filled" theme="auto" components={{ fields: { text: MyTextField } }} />
 ```
 
-Full documentation is in the repository.
+Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/reference/react).
 
 MIT licence.

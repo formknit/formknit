@@ -39,6 +39,6 @@ sent over the network.
 - **Lookups** that read a value from another data source, re-checked on the server with `validateAsync`
 - **Your own field types** with `defineField`
 
-To render forms, add `@formknit/react`. Full documentation is in the repository.
+To render forms, add `@formknit/react`. Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/reference/core).
 
 MIT licence.

@@ -1,6 +1,12 @@
 # Custom field types
 
-A field type has up to three parts. Only the first two are needed to use it in a form.
+[[toc]]
+
+## Introduction
+
+When the built-in types are not enough (a colour picker, a Nepali-calendar date, a map
+location, a product picker from your catalogue) you can add your own. A field type has up to
+three parts. Only the first two are needed to use it in a form.
 
 ## 1. Tell the core about it
 
@@ -57,6 +63,8 @@ field<'brand', string>('colour', 'brand', { label: 'Brand colour' })
 
 ## 3. Show it in the visual builder
 
+See [extending the builder](./builder-extending) for every option.
+
 It appears in the palette as soon as it is defined. To give it an icon, starting properties
 and its own settings:
 
@@ -89,3 +97,25 @@ function MyDateField(p: FieldProps<string>) {
 If the value has a different shape (two calendars stored side by side, say), define a new type
 as in step 1 instead, and publish the three parts together as your own package: the
 `defineField` call, the component, and the `registerBuilderField` call.
+
+## Publishing a field as a package
+
+A field type can be shared as an npm package. Put the three parts in one module and export a
+function that registers them, so apps opt in explicitly:
+
+```ts
+// @acme/formknit-colour
+import { defineField } from '@formknit/core'
+import { registerBuilderField } from '@formknit/builder'
+import { ColourField } from './ColourField'
+
+export function registerColour() {
+  defineField({ type: 'colour', kind: 'input', label: 'Colour', group: 'Basic', emptyValue: '' /* … */ })
+  registerBuilderField('colour', { icon: '<circle cx="12" cy="12" r="9"/>' })
+}
+
+export const colourComponents = { fields: { colour: ColourField } }
+```
+
+The `defineField` part must also run on your server before `validate`, so keep it importable
+without React (for example in a separate `@acme/formknit-colour/core` entry).

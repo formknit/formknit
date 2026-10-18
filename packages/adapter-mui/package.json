@@ -52,5 +52,9 @@
     "type": "git",
     "url": "git+https://github.com/formknit/formknit.git",
     "directory": "packages/adapter-mui"
+  },
+  "homepage": "https://formknit.github.io/formknit/guide/adapter-mui",
+  "bugs": {
+    "url": "https://github.com/formknit/formknit/issues"
   }
 }

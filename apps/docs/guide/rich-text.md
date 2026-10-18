@@ -1,5 +1,7 @@
 # Rich text
 
+[[toc]]
+
 The `richText` field stores formatted text as HTML. The core package knows the field type and
 keeps its value safe; the editor itself lives in a separate package, so forms that do not need
 one do not pay for it.

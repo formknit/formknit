@@ -96,7 +96,8 @@ stacks full width, so a form in a narrow sidebar stacks even on a large screen.
 
 ## Documentation
 
-The guide lives in `apps/docs`. Read it locally with:
+**[formknit.github.io/formknit](https://formknit.github.io/formknit)**: the full guide, the self-hosted platform and the
+API reference. To read it locally:
 
 ```bash
 pnpm docs:dev   # http://localhost:5174

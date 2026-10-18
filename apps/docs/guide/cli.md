@@ -1,5 +1,7 @@
 # Command line
 
+[[toc]]
+
 ```bash
 npm install --save-dev @formknit/cli
 ```

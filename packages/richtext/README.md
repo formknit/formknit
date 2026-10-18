@@ -31,7 +31,7 @@ export const PostForm = () => <Form schema={schema} components={components} onSu
 
 Options: `toolbar`, `items` (your own buttons), `extensions`, `baseExtensions`, `labels`, `onReady`.
 
-See the rich text guide in the documentation for the full list of buttons, custom extensions and
-how to use a different editor.
+See the [rich text guide](https://formknit.github.io/formknit/guide/rich-text) for the full list of buttons, custom extensions
+and how to use a different editor.
 
 MIT licence.

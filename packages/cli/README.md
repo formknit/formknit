@@ -16,4 +16,6 @@ npx formknit types forms/admission.json -o src/admission.d.ts
 `check` finds duplicate keys, formulas that do not parse, references to fields that do not
 exist and circular formulas. Run it in CI to stop a broken form from being deployed.
 
+Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/guide/cli).
+
 MIT licence.

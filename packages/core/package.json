@@ -33,5 +33,9 @@
     "type": "git",
     "url": "git+https://github.com/formknit/formknit.git",
     "directory": "packages/core"
+  },
+  "homepage": "https://formknit.github.io/formknit/reference/core",
+  "bugs": {
+    "url": "https://github.com/formknit/formknit/issues"
   }
 }

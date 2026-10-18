@@ -1,5 +1,7 @@
 # Styling
 
+[[toc]]
+
 Import the stylesheet once:
 
 ```ts

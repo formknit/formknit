@@ -1,101 +1,78 @@
-# UI library adapters
+# Adapters
 
-Formknit keeps a form's logic separate from its looks. An adapter is a map from each field
-type to the component that draws it. Pass one to `<Form>` and the same schema renders with a
-different UI library.
+[[toc]]
 
-## Material UI
+## Introduction
 
-```bash
-npm install @formknit/adapter-mui @mui/material @emotion/react @emotion/styled
-```
+Formknit keeps what a form **does** separate from how it **looks**. The logic lives in the
+core; the looks come from an **adapter**: a map from each field type to the React component
+that draws it.
 
 ```tsx
-import { muiAdapter } from '@formknit/adapter-mui'
-import '@formknit/react/styles.css'
-
-<Form schema={schema} components={muiAdapter} />
+<Form schema={schema} />                              // the built-in look
+<Form schema={schema} components={muiAdapter} />      // Material UI
+<Form schema={schema} components={shadcnAdapter} />   // shadcn/ui
 ```
 
-It follows your MUI theme and needs Material UI 6 or later.
+The same schema, the same validation, the same data: only the components change.
 
-## shadcn/ui
+## Available adapters
 
-shadcn components live in your project, so the adapter does too. Copy
-`packages/adapter-shadcn/registry/formknit.tsx` into your project as `components/formknit.tsx`,
-add the components it imports, and use it:
+| Adapter | Package | |
+|---|---|---|
+| Built-in | `@formknit/react` | Themeable with CSS variables; see [styling](./styling) |
+| [Material UI](./adapter-mui) | `@formknit/adapter-mui` | Uses your MUI theme |
+| [shadcn/ui](./adapter-shadcn) | `@formknit/adapter-shadcn` | A file you copy into your project |
+| Rich text | `@formknit/richtext` | Adds the editor to any of the above; see [rich text](./rich-text) |
 
-```bash
-npx shadcn@latest add button checkbox input label radio-group select slider switch textarea
-```
+Ant Design and Chakra UI adapters are planned. Until then, [writing one](./writing-adapters)
+takes an afternoon.
 
-```tsx
-import { shadcnAdapter } from '@/components/formknit'
-<Form schema={schema} components={shadcnAdapter} />
-```
+## Replacing a single field
 
-::: warning Check it in your project
-The shadcn adapter is tested against stand-ins with the same props as the shadcn components.
-It has not been run inside a real Tailwind and shadcn project yet.
-:::
-
-## Replacing one field
-
-You do not need a whole adapter to change one thing. Anything you leave out falls back to the
-built-in skin:
+You never need a whole adapter to change one thing. Anything you leave out falls back to the
+built-in look:
 
 ```tsx
 <Form schema={schema} components={{ fields: { date: MyDatePicker } }} />
-<Form schema={schema} components={{ ...muiAdapter, fields: { ...muiAdapter.fields, date: MyDatePicker } }} />
 ```
 
-## Writing a field component
-
-A field component receives `FieldProps` and renders the label, control, help text and error:
+Or on top of an adapter:
 
 ```tsx
-import type { FieldProps } from '@formknit/react'
+const components = { ...muiAdapter, fields: { ...muiAdapter.fields, date: MyDatePicker } }
+<Form schema={schema} components={components} />
+```
 
-function MyTextField(p: FieldProps<string>) {
-  return (
-    <div>
-      <label htmlFor={p.id}>{p.label}{p.required && ' *'}</label>
-      <input
-        id={p.id}
-        value={p.value ?? ''}
-        placeholder={p.placeholder}
-        disabled={p.disabled}
-        aria-invalid={!!p.error}
-        onChange={(e) => p.onChange(e.target.value)}
-        onBlur={p.onBlur}
-      />
-      {p.description && <small>{p.description}</small>}
-      {p.error && <span role="alert">{p.error}</span>}
-    </div>
-  )
+Create such objects once, outside your component, so React does not see a new adapter on
+every render.
+
+## What an adapter contains
+
+```ts
+{
+  fields: { text, number, select, … },             // by field type
+  layout: { panel, columns, content, divider, repeater },
+  ui: { Button, Steps },                            // buttons and the step indicator
 }
 ```
 
-| Prop | |
-|---|---|
-| `id`, `path` | An id for the control, and the field's location in the data (`items.0.qty`) |
-| `component` | The field's schema, for any extra properties |
-| `label`, `description`, `placeholder`, `options` | Display text and choices |
-| `value`, `onChange(value)` | Pass typed text through unchanged; Formknit converts numbers itself |
-| `onBlur()` | Call when the user leaves the field, so its error may be shown |
-| `error` | The message to show now, or `undefined` |
-| `required`, `disabled`, `loading` | State |
+All three groups are optional when passed to `components`. See
+[writing an adapter](./writing-adapters) for the props each component receives.
 
-An adapter has three groups: `fields` (by field type), `layout` (`panel`, `columns`, `content`,
-`divider`, `repeater`) and `ui` (`Button`, `Steps`). See the Material UI adapter's source for
-a complete example.
+## Keep the stylesheet
+
+Import `@formknit/react/styles.css` whichever adapter you use. Besides the built-in look, it
+provides the responsive grid that places fields side by side, which adapters rely on.
 
 ## Checking coverage
 
 ```ts
 import { describeAdapter } from '@formknit/react'
-describeAdapter(myAdapter) // { own: [...], fallback: [...], missing: [...] }
+
+describeAdapter(myAdapter)
+// { own: ['text', 'select', …], fallback: ['signature', 'address'], missing: [] }
 ```
 
-`fallback` lists the types drawn by the built-in skin, and `missing` any custom types with no
-component at all.
+`fallback` lists the types drawn by the built-in look, and `missing` lists custom field types
+with no component at all. Run it in a test to catch a new field type nobody has styled.

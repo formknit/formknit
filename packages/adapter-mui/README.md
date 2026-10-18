@@ -20,4 +20,6 @@ Pass the same adapter to `<FormBuilder components={muiAdapter}>` so previews mat
 Needs MUI 6 or newer. Field types MUI has no component for (signature, address, date range)
 use Formknit's built-in ones.
 
+Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/guide/adapter-mui).
+
 MIT licence.

@@ -29,3 +29,5 @@ variables; set those to your theme's colours if you use them.
 The adapter is tested against stand-ins that have the same props as the shadcn components. It
 has not yet been run inside a real Tailwind and shadcn project, so check it in yours and report
 anything that looks wrong.
+
+Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/guide/adapter-shadcn).

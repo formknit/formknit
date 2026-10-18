@@ -50,5 +50,9 @@
     "type": "git",
     "url": "git+https://github.com/formknit/formknit.git",
     "directory": "packages/react"
+  },
+  "homepage": "https://formknit.github.io/formknit/reference/react",
+  "bugs": {
+    "url": "https://github.com/formknit/formknit/issues"
   }
 }

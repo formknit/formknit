@@ -1,5 +1,7 @@
 # Lookups, uploads and drafts
 
+[[toc]]
+
 ## Lookups
 
 A lookup field fetches its value from somewhere you control: another form's submissions, your
@@ -51,7 +53,7 @@ Your `lookup` function is the gatekeeper. Check that the caller is allowed to re
 ## File uploads
 
 ```ts
-field('file', 'cv', { label: 'CV', accept: '.pdf,image/*', validate: { maxSizeMb: 2, required: true } })
+file('cv').label('CV').set({ accept: '.pdf,image/*', validate: { required: true, maxSizeMb: 2 } })
 ```
 
 ```tsx

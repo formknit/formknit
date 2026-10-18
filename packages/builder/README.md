@@ -31,6 +31,6 @@ export function Editor({ initial, save }) {
 | `value`, `onChange` | Control the schema yourself |
 | `components` | Field components or an adapter, for the previews |
 
-Full documentation is in the repository.
+Full documentation: [formknit.github.io/formknit](https://formknit.github.io/formknit/guide/builder).
 
 MIT licence.
