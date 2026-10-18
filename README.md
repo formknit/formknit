@@ -1,22 +1,32 @@
 # Formknit
 
-Open-source form engine for React developers: describe a form once as data, then
-render it, validate it on the server with the same rules, and edit it in a visual
-builder.
+[![npm](https://img.shields.io/npm/v/@formknit/core?label=npm&color=4f46e5)](https://www.npmjs.com/org/formknit)
+[![CI](https://github.com/formknit/formknit/actions/workflows/ci.yml/badge.svg)](https://github.com/formknit/formknit/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-formknit.github.io-4f46e5)](https://formknit.github.io/formknit/)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-**Status: early (0.x).** Published on npm under `@formknit`; expect breaking changes between minor versions until 1.0. See [PLAN.md](PLAN.md) for the roadmap.
+Open-source form engine for React developers. Describe a form once as data, then render it,
+validate it on the server with the same rules, and let people edit it in a visual builder.
 
-## Packages
+**[Documentation](https://formknit.github.io/formknit/)** ·
+[Your first form](https://formknit.github.io/formknit/guide/quickstart) ·
+[Field types](https://formknit.github.io/formknit/guide/fields) ·
+[Formulas](https://formknit.github.io/formknit/guide/expressions) ·
+[API reference](https://formknit.github.io/formknit/reference/core) ·
+[Self-hosted platform](https://formknit.github.io/formknit/platform/overview)
 
-| Package | Status | What it does |
-|---|---|---|
-| `@formknit/core` | Working | Schema, code-first builders, validation, formulas, visibility rules. No dependencies; runs in browsers, Node and Bun |
-| `@formknit/react` | Working | `<Form>`, `useForm` and `useField` hooks, multi-step forms, repeaters, lookups, uploads, drafts, swappable components, themeable responsive skin |
-| `@formknit/richtext` | Working | Rich text editor field built on Tiptap, with a configurable toolbar and extensions |
-| `@formknit/adapter-mui` | Working | Renders forms with Material UI components and your MUI theme |
-| `@formknit/adapter-shadcn` | Working, see note | One file you copy into a shadcn/ui project. Tested against stand-in components, not yet inside a real shadcn project |
-| `@formknit/cli` | Working | `formknit check` lists schema problems; `formknit types` generates a TypeScript type |
-| `@formknit/builder` | Working | Drag-and-drop form builder: palette, canvas, settings, rule and formula editors, pages, undo/redo, preview and JSON views |
+> **Status: early (0.x).** Used and tested, but expect breaking changes between minor
+> versions until 1.0. Each release lists them in the
+> [release notes](https://formknit.github.io/formknit/guide/release-notes).
+
+## Install
+
+```bash
+npm install @formknit/core @formknit/react
+```
+
+See [installation](https://formknit.github.io/formknit/guide/installation) for pnpm, yarn,
+bun and Next.js.
 
 ## Quick look
 
@@ -37,247 +47,106 @@ const invoice = form('Fee invoice', [
   calculated('total', 'SUM(items.amount)').label('Total'),
 ])
 
-// `data` is fully typed from the schema: data.items[0].amount is number | null
+// `data` is typed from the schema: data.items[0].amount is number | null
 export const InvoiceForm = () => <Form schema={invoice} onSubmit={(data) => save(data)} />
 ```
 
-To render with Material UI, pass the adapter:
+Check the same submission on your server with the same schema:
 
-```tsx
-import { muiAdapter } from '@formknit/adapter-mui'
+```ts
+import { validate } from '@formknit/core'
 
-<Form schema={invoice} components={muiAdapter} />
+const result = validate(invoice, requestBody)
+if (!result.valid) return respond(422, result.errors) // { 'items.0.qty': ['Qty must be at least 1'] }
+await db.insert(result.data) // hidden and unknown fields removed, every formula recalculated
 ```
 
-For any other UI library, pass your own components for the field types you want to replace:
+The full walk-through is in [your first form](https://formknit.github.io/formknit/guide/quickstart).
 
-```tsx
-<Form schema={invoice} components={{ fields: { text: MyTextField, select: MySelect } }} />
-```
+## Why Formknit
 
-## Styling
+- **One definition.** A form is plain JSON. The renderer, the server validator and the visual
+  builder all read the same schema, so the browser and the server can never disagree.
+  ([How it works](https://formknit.github.io/formknit/guide/concepts))
+- **Spreadsheet-style formulas.** Totals, show and hide rules and custom checks use one small
+  expression language with 28 functions. It is parsed by Formknit and never run as JavaScript,
+  so schemas from a database are safe. ([Formulas](https://formknit.github.io/formknit/guide/expressions))
+- **Typed data.** Forms written in code give you the type of the submitted data for free.
+  ([Defining forms](https://formknit.github.io/formknit/guide/defining-forms))
+- **Your UI library.** A themeable built-in look with sizes, variants and dark mode, adapters
+  for Material UI and shadcn/ui, or your own component for any field.
+  ([Adapters](https://formknit.github.io/formknit/guide/adapters))
+- **A builder for your users.** Embed a drag-and-drop designer with a rule builder, formula
+  editor, pages, undo and live preview. ([Visual builder](https://formknit.github.io/formknit/guide/builder))
+- **Everything forms need.** Multi-page forms, repeating groups, conditional logic, lookups
+  from other data, file uploads, signatures, rich text, saved drafts and translations.
+- **Accessible.** Labels, errors and focus handling are built in, and every field type passes
+  an automated accessibility check.
 
-Import `@formknit/react/styles.css` once. Then:
+## Packages
 
-| What | How |
-|---|---|
-| Size | `<Form size="sm" />` or `"lg"` (class `fx-size-sm`, `fx-size-lg`) |
-| Field style | `variant="filled"` or `"underline"` |
-| Label position | `labelPosition="left"` puts labels beside fields on wide forms |
-| Dark mode | `theme="dark"`, or `"auto"` to follow the system |
-| Field width | `text('city').width(4)` on a 12-column grid: 6 is half, 4 a third |
-| Colours, radius, spacing | Override CSS variables such as `--fx-primary`, `--fx-radius`, `--fx-gap` |
-| Helper classes | `.className('fx-hide-label')`, `fx-stack-choices`, `fx-hide-narrow`, `fx-show-narrow`, `fx-align-end` |
+| Package | | Docs |
+|---|---|---|
+| [`@formknit/core`](https://www.npmjs.com/package/@formknit/core) | Schemas, formulas, validation. No dependencies; runs in browsers, Node, Bun, Deno and edge runtimes | [Reference](https://formknit.github.io/formknit/reference/core) |
+| [`@formknit/react`](https://www.npmjs.com/package/@formknit/react) | `<Form>`, hooks and the themeable built-in look | [Guide](https://formknit.github.io/formknit/guide/form-component) |
+| [`@formknit/builder`](https://www.npmjs.com/package/@formknit/builder) | The drag-and-drop form builder | [Guide](https://formknit.github.io/formknit/guide/builder) |
+| [`@formknit/richtext`](https://www.npmjs.com/package/@formknit/richtext) | Rich text editor field built on Tiptap | [Guide](https://formknit.github.io/formknit/guide/rich-text) |
+| [`@formknit/adapter-mui`](https://www.npmjs.com/package/@formknit/adapter-mui) | Renders forms with Material UI | [Guide](https://formknit.github.io/formknit/guide/adapter-mui) |
+| [`@formknit/adapter-shadcn`](https://www.npmjs.com/package/@formknit/adapter-shadcn) | A file you copy into a shadcn/ui project | [Guide](https://formknit.github.io/formknit/guide/adapter-shadcn) |
+| [`@formknit/cli`](https://www.npmjs.com/package/@formknit/cli) | `formknit check` and `formknit types` for JSON schemas | [Guide](https://formknit.github.io/formknit/guide/cli) |
 
-The same options can be stored in the schema as `appearance: { size, variant, labelPosition, theme }`,
-which is what the visual builder edits.
+All packages share one version number and are released together.
 
-Layout responds to the form's own width, not the window's: below about 480px every field
-stacks full width, so a form in a narrow sidebar stacks even on a large screen.
+## The self-hosted platform
 
-## More features
-
-```tsx
-<Form
-  schema={schema}
-  lookup={(query) => api.lookup(query)}          // values for lookup fields, e.g. from another form
-  onUpload={(file) => api.upload(file)}           // returns a URL or an object to store
-  draft={{ key: 'admission-draft' }}              // keeps unfinished answers across reloads
-  onSubmit={save}
-/>
-```
-
-- **Lookup fields** fetch a value from a data source you provide: one record (`first`, `last`) or a
-  total across many (`sum`, `count`, `avg`, `list`). Formulas can then use the result. On the
-  server, `validateAsync(schema, body, { lookup })` fetches them again so a client cannot forge them.
-- **File fields** accept `accept: '.pdf,image/*'` and `validate.maxSizeMb`.
-- **More field types:** web address, star rating, slider, date range, address, signature.
-- **Nepali** validation messages and button labels (`messagesNe`, `labelsNe`).
-
-## Documentation
-
-**[formknit.github.io/formknit](https://formknit.github.io/formknit)**: the full guide, the self-hosted platform and the
-API reference. To read it locally:
+`apps/api` and `apps/web` are an optional web application built on the packages: publish
+forms at public addresses, collect and review submissions, work in teams with five roles,
+and send data on through signed webhooks and a REST API. It runs on SQLite or PostgreSQL,
+with Docker or without.
 
 ```bash
-pnpm docs:dev   # http://localhost:5174
-```
-
-Let your own users design forms by embedding the builder:
-
-```tsx
-import { FormBuilder } from '@formknit/builder'
-import '@formknit/react/styles.css'
-import '@formknit/builder/styles.css'
-
-<FormBuilder value={schema} onChange={setSchema} />
-```
-
-## The platform (early)
-
-`apps/api` and `apps/web` are a hosted product built on the packages: sign in, design forms
-with the builder, publish them, collect submissions, and export them.
-
-```bash
-pnpm seed       # once: creates a demo account and three sample forms
-pnpm dev:api    # API on http://localhost:8787
-pnpm dev:web    # app on http://localhost:5175
-```
-
-The seed creates two accounts in one workspace, an owner and a reviewer, so you can see how
-roles differ. Their sign-in details are in `apps/api/scripts/seed.ts`. They are for local
-development only.
-
-What works today:
-
-- **Accounts:** register, sign in, password reset by emailed link, change name and password,
-  API keys for read-only access from your own programs
-- **Teams:** forms live in a workspace. Invite people by email as viewer, reviewer, editor or
-  admin; switch between workspaces; each role sees only the actions it may take, and the server
-  enforces the same rules
-- **Forms:** create blank or from a template, edit in the builder with autosave, duplicate,
-  publish, unpublish, delete. Draft and published versions are separate
-- **Version history:** every publish is kept and can be restored as the draft
-- **Public form page** at `/f/<address>`, validated again on the server, with file uploads
-- **Opening times:** open and close dates, a submission limit, or close by hand
-- **Submissions:** list, search, filter by status, view, edit, delete, export to CSV
-- **Review:** each submission is new, in review, approved or rejected, with private notes
-- **Dashboard and reports:** totals, submissions per day, and a breakdown of each choice and
-  number field
-- **Notifications:** email chosen addresses on each submission; webhooks signed with a secret,
-  with a delivery log and a test button
-- **Lookups between forms**, limited to fields the source form has marked as readable
-
-Email (password resets, invitations, notifications) is sent through any SMTP server once
-`SMTP_URL` is set. Without it, development prints each message in the API's terminal, and
-production only records them in the `outbox` table.
-
-Not built: payments, Google Sheets, PDF generation, Excel export.
-
-### Database
-
-The platform stores everything in SQLite by default (a single file, nothing to install) and can
-use PostgreSQL instead. Set `DATABASE_URL` to choose:
-
-| `DATABASE_URL` | Database |
-|---|---|
-| not set | SQLite in `apps/api/formknit.sqlite` |
-| a file path, e.g. `/data/formknit.sqlite` | SQLite in that file |
-| `postgres://user:password@host:5432/name` | PostgreSQL |
-
-Tables are created and upgraded when the server starts. Data is not copied from one database to
-the other, so pick one before collecting real submissions. With PostgreSQL, start one server at a
-time when upgrading, so two do not run the same upgrade step together.
-
-`pnpm --filter @formknit/api test` runs the API tests twice, once on each database.
-
-### Deploying
-
-One server can hand out both the API and the built admin app, so a deployment is a single address.
-
-With Docker and PostgreSQL:
-
-```bash
-cp .env.example .env    # then set WEB_ORIGIN and POSTGRES_PASSWORD
+cp .env.example .env    # set WEB_ORIGIN and POSTGRES_PASSWORD
 docker compose up -d
 ```
 
-With Docker and SQLite, for a small install:
+Read the [platform documentation](https://formknit.github.io/formknit/platform/overview) for
+[installation](https://formknit.github.io/formknit/platform/installation),
+[configuration](https://formknit.github.io/formknit/platform/configuration) and
+[security](https://formknit.github.io/formknit/platform/security) before putting it online.
 
-```bash
-docker build -t formknit .
-docker run -d -p 8787:8787 -v formknit-data:/data -e WEB_ORIGIN=https://forms.example.com formknit
-```
+## Documentation
 
-Without Docker:
+The documentation lives at **[formknit.github.io/formknit](https://formknit.github.io/formknit/)**:
 
-```bash
-pnpm install
-pnpm --filter "@formknit/web..." build
-cd apps/api
-WEB_DIR=../web/dist WEB_ORIGIN=https://forms.example.com node --import tsx src/index.ts
-```
-
-| Setting | Meaning |
+| Section | |
 |---|---|
-| `WEB_ORIGIN` | The address people open in their browser. Requests that change data from anywhere else are refused, and emailed links use it |
-| `DATABASE_URL` | See above |
-| `UPLOAD_DIR` | Folder for uploaded files. Defaults to `uploads` |
-| `WEB_DIR` | Folder holding the built admin app. Leave unset to run the API alone |
-| `SMTP_URL` | Mail server, e.g. `smtps://user:password@smtp.example.com:465` or `smtp://user:password@smtp.example.com:587`. Without it no email is sent |
-| `MAIL_FROM` | Sender shown on emails, e.g. `Forms <forms@example.com>` |
-| `REGISTRATION` | `open` (default) lets anyone create an account. `invite` allows only the first account and people invited to a workspace |
-| `PORT` | Defaults to 8787 |
+| [Getting started](https://formknit.github.io/formknit/guide/introduction) | Introduction, installation, your first form, how it works |
+| [Defining forms](https://formknit.github.io/formknit/guide/defining-forms) | Field types, layout and pages, repeating groups, conditional logic, the schema reference |
+| [Formulas and validation](https://formknit.github.io/formknit/guide/expressions) | The formula language, every function, validation rules, server examples |
+| [Rendering in React](https://formknit.github.io/formknit/guide/form-component) | The Form component, hooks, lookups, uploads, drafts, styling, translations |
+| [Extending](https://formknit.github.io/formknit/guide/custom-fields) | Custom fields and functions, adapters, the builder, rich text |
+| [Platform](https://formknit.github.io/formknit/platform/overview) | Installing and running the self-hosted app, webhooks, the API |
+| [API reference](https://formknit.github.io/formknit/reference/core) | Every export of every package |
 
-Put it behind HTTPS (a reverse proxy such as Caddy or nginx) before real use: sign-in cookies are
-marked secure only when `WEB_ORIGIN` starts with `https://`. Back up the database and the upload
-folder.
-
-## Server validation
-
-```ts
-import { validate, type FormSchema } from '@formknit/core'
-
-const invoice: FormSchema = {
-  version: 1,
-  pages: [
-    {
-      key: 'main',
-      components: [
-        { type: 'select', key: 'country', options: [{ label: 'Nepal', value: 'NP' }] },
-        { type: 'text', key: 'district', visibleWhen: 'country == "NP"', validate: { required: true } },
-        {
-          type: 'repeater',
-          key: 'items',
-          components: [
-            { type: 'number', key: 'qty', validate: { min: 1 } },
-            { type: 'number', key: 'rate' },
-            { type: 'calculated', key: 'amount', expression: 'qty * rate' },
-          ],
-        },
-        { type: 'calculated', key: 'total', expression: 'SUM(items.amount)' },
-      ],
-    },
-  ],
-}
-
-const result = validate(invoice, requestBody)
-// result.valid   false if any rule fails
-// result.errors  { 'items.0.qty': ['qty must be at least 1'] }
-// result.data    cleaned: hidden and unknown fields removed, formulas recalculated
-```
-
-Other exports: `computeState` (per-field visibility, required, disabled, errors, for
-renderers), `checkSchema` (finds mistakes in a schema, including circular formulas),
-`getInitialValues`, `evaluate` (run one expression), `defineField` and
-`registerFunction` (extend it).
-
-## Expressions
-
-One Excel-style language is used for `visibleWhen`, `requiredWhen`, `disabledWhen`,
-calculated fields and custom validation rules.
-
-- Operators: `+ - * / % ^`, `&` (join text), `== != > >= < <=`, `AND OR NOT`
-- Functions: `SUM AVG MIN MAX COUNT ROUND FLOOR CEIL ABS NUMBER IF IFERROR AND OR NOT
-  CONCAT LEN UPPER LOWER TRIM CONTAINS ISEMPTY COALESCE TODAY YEAR MONTH DAY DATEDIF`
-- `items.amount` reads a column from every row of a repeater
-- Hidden fields read as empty
-- Errors such as `#DIV/0!` are values shown on the field; evaluation never throws
-- Expressions are parsed, never run as JavaScript
+Its source is in `apps/docs`. To read it locally, run `pnpm docs:dev` and open
+http://localhost:5174.
 
 ## Development
 
-Requires Node 20+ and pnpm (`corepack enable` turns it on).
+Requires Node.js 22 or newer and pnpm (`corepack enable` turns it on).
 
 ```bash
 pnpm install
+pnpm dev          # playground with example forms on http://localhost:5173
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm --filter @formknit/playground dev   # example forms at http://localhost:5173
-pnpm changeset                          # record a change for the next release (see .changeset/README.md)
 ```
+
+See [contributing](https://formknit.github.io/formknit/guide/contributing) for how the
+repository is organised, the ground rules, and how releases work. Report security problems
+privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-MIT
+[MIT](LICENSE) © Shishir Rai and Formknit contributors
